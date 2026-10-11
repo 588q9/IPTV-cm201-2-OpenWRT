@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: LGPL-2.1-only
+# Copyright (C) 2011 Felix Fietkau <nbd@openwrt.org>
+# 本补丁修改上游 ubusd_id.c，沿用该文件的 GNU LGPL 2.1 许可。
+# 上游提交：24864e7840b3a02a9ef76284a373f6b2f00b8a9b
+# 兼容 Linux 3.18：getrandom 返回 EINVAL 或 ENOSYS 时读取 /dev/urandom。
+
+--- a/ubusd_id.c
++++ b/ubusd_id.c
+@@ -15,6 +15,7 @@
+ #include <stdlib.h>
+ #include <unistd.h>
+ #include <fcntl.h>
++#include <errno.h>
+ #ifdef __linux__
+ #include <sys/random.h>
+ /* Added in Linux 5.6; define it in case the libc headers are older. */
+@@ -27,9 +28,7 @@
+ #include "ubusmsg.h"
+ #include "ubusd_id.h"
+ 
+-#ifndef __linux__
+ static int random_fd = -1;
+-#endif
+ 
+ static ssize_t read_random(void *buf, size_t len)
+ {
+@@ -39,17 +38,23 @@
+ 	 * GRND_INSECURE returns bytes without blocking on the CRNG, so
+ 	 * ubusd does not stall boot on boards whose pool seeds late.
+ 	 */
+-	return getrandom(buf, len, GRND_INSECURE);
+-#else
++	ssize_t result = getrandom(buf, len, GRND_INSECURE);
++	if (result >= 0 || (errno != EINVAL && errno != ENOSYS))
++		return result;
++	/* 旧内核不支持 GRND_INSECURE；保持非阻塞读取语义。 */
++#endif
+ 	if (random_fd < 0) {
+-		random_fd = open("/dev/urandom", O_RDONLY);
++		random_fd = open("/dev/urandom", O_RDONLY | O_CLOEXEC);
+ 		if (random_fd < 0) {
+ 			perror("open /dev/urandom");
+ 			return -1;
+ 		}
+ 	}
+-	return read(random_fd, buf, len);
+-#endif
++	ssize_t count;
++	do {
++		count = read(random_fd, buf, len);
++	} while (count < 0 && errno == EINTR);
++	return count;
+ }
+ 
+ static int ubus_cmp_id(const void *k1, const void *k2, void *ptr)

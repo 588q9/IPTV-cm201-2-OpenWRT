@@ -1,0 +1,132 @@
+#!/bin/sh
+# 每一阶段单独调用；构建器与 ram-test 从不自动执行本脚本。
+set -eu
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+resources=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+fail() { echo "停止安装：$*" >&2; exit 1; }
+hash_file() {
+    actual=$(sha256sum "$1") || fail "无法读取 $1"
+    [ "${actual%% *}" = "$2" ] || fail "摘要不符：$1"
+}
+hash_file "$resources/install.env" '{{ENV_SHA}}'
+. "$resources/install.env"
+guard() {
+    case "$(cat /proc/cmdline)" in
+        *"mtdparts=hinand:$MAP_RW"*|*"mtdparts=hinand:$MAP_RO"*) ;;
+        *) fail '不是本次容量的九分区 RAM 映射' ;;
+    esac
+    [ "$(grep -c '^mtd[0-9]' /proc/mtd)" = 9 ] || fail 'MTD 数目错误'
+    index=0
+    for pair in $MTD_EXPECT; do
+        entry=/sys/class/mtd/mtd$index
+        [ "$(cat "$entry/name")" = "${pair%:*}" ] || fail 'MTD 名称错误'
+        [ "$(cat "$entry/size")" = "${pair#*:}" ] || fail 'MTD 容量错误'
+        [ "$(cat "$entry/erasesize")" = 2097152 ] || fail '擦除块几何错误'
+        [ "$(cat "$entry/writesize")" = 8192 ] || fail '页几何错误'
+        [ "$(cat "$entry/type")" = mlc-nand ] || fail 'NAND 类型错误'
+        index=$((index+1))
+    done
+    [ "$(cat /sys/class/mtd/mtd0/flags)" = 0x0 ] || fail 'fastboot 必须内核只读'
+    hash_file /dev/mtd0 "$FASTBOOT_SHA"
+    hash_file "$resources/tools.sha256" '{{TOOLS_SHA}}'
+    (cd "$resources" && sha256sum -c tools.sha256) || fail '维护工具摘要错误'
+}
+check_files() {
+    hash_file "$resources/boot.img" "$BOOT_SHA"
+    hash_file "$resources/ptable.bin" "$PTABLE_SHA"
+    hash_file "$resources/mlcverify.bin" "$MLC_SHA"
+    hash_file "$resources/baseparam.bin" "$BASEPARAM_SHA"
+    hash_file "$resources/baseparam2.bin" "$BASEPARAM2_SHA"
+    hash_file "$resources/rootfs.tar.gz" "$ROOT_SHA"
+    hash_file "$resources/misc.bin.gz" "$MISC_GZ_SHA"
+    hash_file "$resources/swdevinfo.bin.gz" "$SWDEV_GZ_SHA"
+}
+check_bad() {
+    "$resources/mtdinfo" "/dev/mtd$1" -M >"/tmp/cm2012-map-$1.log" 2>&1 || fail '读取坏块失败'
+    if grep -Ei ' BAD |failed|failure|could not|error' "/tmp/cm2012-map-$1.log"; then fail '核心目标有坏块或读取错误'; fi
+}
+require_write() {
+    [ "$(cat /sys/class/mtd/mtd$1/flags)" = 0x400 ] || fail '目标未在人工安装 RAM 映射中开放写入'
+}
+root_target_free() {
+    ubi_dir=$1; mount_table=$2; target_dir=$3
+    [ ! -e "$target_dir" ] || fail '根解包目录已存在，拒绝复用'
+    [ ! -d "$ubi_dir/ubi0" ] || fail 'UBI 编号 0 已占用'
+    for attached in "$ubi_dir"/ubi[0-9]*; do
+        [ -f "$attached/mtd_num" ] || continue
+        [ "$(cat "$attached/mtd_num")" != 8 ] || fail '目标 mtd8 已挂接到 UBI，拒绝格式化'
+    done
+    if awk '$1=="/dev/mtd8" || $1=="/dev/mtdblock8" {found=1} END {exit !found}' "$mount_table"; then
+        fail '目标 mtd8 已挂载，拒绝格式化'
+    fi
+}
+read_hash() {
+    dd if="/dev/mtd$1" of=/tmp/cm2012-readback.bin bs=8192 skip=$(($2/8192)) count=$((($3+8191)/8192)) || fail 'ECC 读回失败'
+    [ "$(wc -c </tmp/cm2012-readback.bin)" = "$(((($3+8191)/8192)*8192))" ] || fail '读回长度错误'
+    head -c "$3" /tmp/cm2012-readback.bin >/tmp/cm2012-valid.bin
+    hash_file /tmp/cm2012-valid.bin "$4"
+    rm -f /tmp/cm2012-readback.bin /tmp/cm2012-valid.bin
+}
+write_copy() {
+    guard; check_files
+    index=$1; offset=$2; blocks=$3; file=$4; expected=$5
+    case "$index" in 1|2|3|4|5|6|7) ;; *) fail '禁止写入该目标' ;; esac
+    require_write "$index"
+    length=$(wc -c <"$file")
+    [ "$((offset%2097152))" = 0 ] || fail '起点不对齐'
+    [ "$length" -gt 0 ] && [ "$length" -le "$((blocks*2097152))" ] || fail '有效内容越界'
+    [ "$((offset+blocks*2097152))" -le "$(cat /sys/class/mtd/mtd$index/size)" ] || fail '擦除区间越界'
+    case "$blocks" in 1) erased=$ERASED_1;; 2) erased=$ERASED_2;; 6) erased=$ERASED_6;; 8) erased=$ERASED_8;; *) fail '未知擦除区间';; esac
+    hash_file "$file" "$expected"
+    check_bad "$index"
+    "$resources/flash_erase" "/dev/mtd$index" "$offset" "$blocks" >/tmp/cm2012-erase.log 2>&1 || fail '擦除失败'
+    if grep -Ei 'failed|failure|error|Skipping bad' /tmp/cm2012-erase.log; then fail '擦除日志错误'; fi
+    read_hash "$index" "$offset" "$((blocks*2097152))" "$erased"
+    "$resources/nandwrite" -p -s "$offset" "/dev/mtd$index" "$file" >/tmp/cm2012-write.log 2>&1 || fail '写入失败'
+    if grep -Ei 'failed|failure|error|Skipping bad' /tmp/cm2012-write.log; then fail '写入日志错误'; fi
+    read_hash "$index" "$offset" "$length" "$expected"
+}
+case "${1:-}" in
+check)
+    guard; check_files
+    for index in 1 2 3 4 5 6 7; do check_bad "$index"; done
+    "$resources/mtdinfo" /dev/mtd8 -M >/tmp/cm2012-map-8.log 2>&1 || fail '读取 UBI 目标失败'
+    if grep -Ei 'failed|failure|could not|error' /tmp/cm2012-map-8.log; then fail 'UBI 目标读取错误'; fi
+    echo '本次安装资料、容量、核心坏块与只读引导器核对通过；未写入'
+    ;;
+core)
+    guard; check_files
+    gzip -dc "$resources/misc.bin.gz" >/tmp/cm2012-misc.bin
+    gzip -dc "$resources/swdevinfo.bin.gz" >/tmp/cm2012-swdevinfo.bin
+    [ "$(wc -c </tmp/cm2012-misc.bin)" = 2097152 ] || fail 'misc 长度错误'
+    [ "$(wc -c </tmp/cm2012-swdevinfo.bin)" = 16777216 ] || fail 'swdevinfo 长度错误'
+    write_copy 2 0 1 /tmp/cm2012-misc.bin "$MISC_SHA"
+    write_copy 4 0 8 /tmp/cm2012-swdevinfo.bin "$SWDEVINFO_SHA"
+    write_copy 5 0 1 "$resources/baseparam.bin" "$BASEPARAM_SHA"
+    write_copy 6 0 1 "$resources/baseparam2.bin" "$BASEPARAM2_SHA"
+    ;;
+boot) write_copy 7 0 6 "$resources/boot.img" "$BOOT_SHA" ;;
+mlc)
+    write_copy 3 2097152 1 "$resources/mlcverify.bin" "$MLC_SHA"
+    write_copy 3 0 1 "$resources/mlcverify.bin" "$MLC_SHA"
+    ;;
+ptable)
+    write_copy 1 4194304 2 "$resources/ptable.bin" "$PTABLE_SHA"
+    write_copy 1 0 2 "$resources/ptable.bin" "$PTABLE_SHA"
+    ;;
+root)
+    [ "${2:-}" = CM2012_ERASE_INTERNAL_ROOT ] || fail 'root 阶段必须人工明确指定擦除令牌'
+    guard; check_files; require_write 8
+    root_target_free /sys/class/ubi /proc/mounts /tmp/cm2012-newroot
+    "$resources/ubiformat" /dev/mtd8 -y || fail 'UBI 格式化失败'
+    "$resources/ubiattach" -m 8 -d 0 || fail 'UBI 挂接失败'
+    "$resources/ubimkvol" /dev/ubi0 -N rootfs -m || fail 'UBI 建卷失败'
+    mkdir /tmp/cm2012-newroot
+    mount -t ubifs ubi0:rootfs /tmp/cm2012-newroot || fail 'UBIFS 挂载失败'
+    tar -xzf "$resources/rootfs.tar.gz" -C /tmp/cm2012-newroot || fail '根系统解包失败'
+    [ "$(cat /tmp/cm2012-newroot/etc/cm2012-internal-root)" = CM2012_INTERNAL_OPENWRT25 ] || fail '完成标识错误'
+    sync; umount /tmp/cm2012-newroot || fail '根系统卸载失败'
+    ;;
+*) fail '仅接受人工单独调用的 check/core/boot/mlc/ptable/root 阶段' ;;
+esac
+sync

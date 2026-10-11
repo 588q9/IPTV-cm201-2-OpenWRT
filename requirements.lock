@@ -1,0 +1,8 @@
+# Windows x64、CPython 3.12 的本机依赖；文件 URL、大小与 SHA256 见 resources.lock.json。
+# prepare 下载 wheel，activate_dependencies 从已经验证的本地 wheel 激活；不依赖全局安装。
+pyserial==3.5 --hash=sha256:c4451db6ba391ca6ca299fb3ec7bae67a5c55dde170964c7a14ceefec02f2cf0
+pyserial-asyncio==0.6 --hash=sha256:de9337922619421b62b9b1a84048634b3ac520e1d690a674ed246a2af7ce1fc5
+ymodem==1.5.3 --hash=sha256:79b4e88c70afc277369183c98d1443e57d545e5e3cecb6144aa07138a69aaf10
+ordered-set==4.1.0 --hash=sha256:046e1132c71fcf3330438a539928932caf51ddbc582496833e23de611de14562
+passlib==1.7.4 --hash=sha256:aa6bca462b8d8bda89c70b382f0c298a20b5560af6cbfa2dce410c0a2fb669f1
+pycryptodomex==3.24.0 --hash=sha256:55f22d72250d7923aac3c2442ec6a1dd8774d2efa3bdcb0f68d5e137d372268e

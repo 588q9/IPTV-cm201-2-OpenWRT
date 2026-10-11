@@ -1,0 +1,53 @@
+#!/bin/sh
+# 内部启动入口：先只读核对来源和标识，再开放根系统读写。
+export PATH=/bin:/sbin
+
+maintenance() {
+	echo "CM2012 维护入口：$*；没有自动格式化或擦除"
+	while :; do /bin/sh; sleep 1; done
+}
+
+mount -t proc proc /proc || maintenance '无法挂载 proc'
+mount -t sysfs sysfs /sys || maintenance '无法挂载 sysfs'
+case "$(cat /proc/cmdline)" in
+    *cm2012.test_exec_failure=1*) test_exec_failure=1 ;;
+    *) test_exec_failure=0 ;;
+esac
+if ! mount -t devtmpfs devtmpfs /dev; then
+	mount -t tmpfs tmpfs /dev || maintenance '无法建立设备目录'
+	mknod /dev/console c 5 1
+	mknod /dev/ttyAMA0 c 204 64
+	mknod /dev/null c 1 3
+	mknod /dev/zero c 1 5
+	mknod /dev/kmsg c 1 11
+fi
+exec </dev/console >/dev/console 2>&1
+echo 'CM2012 内部 OpenWrt 根系统入口'
+
+userdata_number=
+for entry in /sys/class/mtd/mtd*; do
+	number=${entry##*/mtd}
+	case "$number" in ''|*[!0-9]*) continue ;; esac
+	[ "$(cat "$entry/name" 2>/dev/null)" = userdata ] && userdata_number=$number
+done
+[ -n "$userdata_number" ] || maintenance '找不到 userdata 分区'
+[ "$(cat /sys/class/ubi/ubi0/mtd_num 2>/dev/null)" = "$userdata_number" ] ||
+	maintenance 'UBI 设备不属于 userdata'
+mount -t ubifs -o ro ubi0:rootfs /newroot || maintenance '找不到 rootfs 卷'
+[ -x /newroot/sbin/init ] || maintenance '根系统缺少 init'
+[ "$(cat /newroot/etc/cm2012-internal-root 2>/dev/null)" = CM2012_INTERNAL_OPENWRT25 ] ||
+	maintenance '根系统标识不正确'
+for directory in dev proc sys tmp; do
+	[ -d "/newroot/$directory" ] || maintenance "缺少根系统目录 $directory"
+done
+mount -o remount,rw /newroot || maintenance '根系统不能切换为读写'
+mount --move /proc /newroot/proc || maintenance '无法移交 proc'
+mount --move /sys /newroot/sys || maintenance '无法移交 sysfs'
+mount --move /dev /newroot/dev || maintenance '无法移交设备目录'
+echo 'CM2012 已核对内部 rootfs，执行保留维护根的切根入口'
+export INITRAMFS=1
+if [ "$test_exec_failure" = 1 ]; then
+    exec /bin/cm2012-switch-root --test-exec-failure
+else
+    exec /bin/cm2012-switch-root
+fi

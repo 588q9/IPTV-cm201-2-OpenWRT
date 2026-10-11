@@ -1,0 +1,47 @@
+#!/bin/sh
+# 本脚本只在独占 /tmp 作业目录安装，不启动服务、不挂载或写 NAND。
+set -eu
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+job=${1:?缺少作业目录}
+required=${2:?缺少所需空间}
+case "$job" in /tmp/cm2012-build-*) ;; *) exit 2 ;; esac
+case "$job" in *..*) exit 2 ;; esac
+case "$required" in ''|*[!0-9]*) exit 2 ;; esac
+[ -d "$job" ] && [ ! -e "$job/root" ] || exit 2
+grep -q ' /tmp tmpfs ' /proc/mounts || { echo 'tmp 不是 RAM 文件系统'; exit 2; }
+available=$(df -k /tmp | awk 'NR==2 {print $4}')
+[ "$available" -ge "$required" ] || { echo 'RAM 空间不足'; exit 2; }
+mkdir "$job/root"
+tar -xzf "$job/seed.tar.gz" -C "$job/root"
+printf '%s\n' "$job/apk/packages.adb" >"$job/repositories"
+# 3.0.5 的布尔选项采用 =no，且是 add/del 的 commit 选项。
+apk --root "$job/root" --repositories-file "$job/repositories" --no-network \
+    add --scripts=no --commit-hooks=no $(cat "$job/packages.list")
+
+# 新增软件包的服务和账户不执行 post-install；原根已有 network/ubus 用户。
+cut -d: -f1,3,4 "$job/root/etc/passwd" | grep -qx 'network:101:101'
+cut -d: -f1,3,4 "$job/root/etc/passwd" | grep -qx 'ubus:81:81'
+for program in hostapd wpa_supplicant; do
+    if [ -x "$job/root/usr/libexec/$program-basic" ]; then
+        ln -sf "/usr/libexec/$program-basic" "$job/root/usr/sbin/$program"
+    elif [ -x "$job/root/usr/sbin/$program-basic" ]; then
+        ln -sf "$program-basic" "$job/root/usr/sbin/$program"
+    fi
+done
+tar -xzf "$job/overlay.tar.gz" -C "$job/root"
+rm -f "$job/root/etc/rc.d/S19dnsmasq"
+# 禁止生成或复制设备私钥、随机种子和运行时状态。
+rm -f "$job/root/etc/urandom.seed" "$job/root/etc/uhttpd.key" "$job/root/etc/uhttpd.crt"
+for key in "$job/root/etc/dropbear/"*host_key; do [ ! -f "$key" ] || rm -f "$key"; done
+for path in sbin/init sbin/ubusd usr/sbin/hostapd usr/sbin/dnsmasq usr/sbin/uhttpd bin/ubus; do
+    [ -e "$job/root/$path" ] || { echo "缺少关键文件：$path"; exit 2; }
+done
+[ -r "$job/root/lib/modules/3.18.24_hi3798mv2x/wlan_mt7668_sdio.ko" ]
+ln -sf ../init.d/cm2012-ap "$job/root/etc/rc.d/S96cm2012-ap"
+# 只有全部前置验证成功才写完成标识。
+printf 'CM2012_INTERNAL_OPENWRT25\n' >"$job/root/etc/cm2012-internal-root"
+# 不把 APK 缓存、虚拟挂载和本次作业资源复制进根归档。
+tar -czf "$job/result.tar.gz" -C "$job/root" .
+sha256sum "$job/result.tar.gz" >"$job/result.sha256"
+wc -c <"$job/result.tar.gz" >"$job/result.size"
+printf 'CM_JOB_COMPLETE\n'

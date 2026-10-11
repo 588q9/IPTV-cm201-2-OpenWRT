@@ -1,0 +1,31 @@
+#!/bin/sh
+# 先等热点成功启用，再配置地址和 DHCP；启动不覆盖用户配置。
+read uptime rest </proc/uptime
+deadline=$((${uptime%%.*} + 60))
+while :; do
+	read uptime rest </proc/uptime
+	[ "${uptime%%.*}" -lt "$deadline" ] || break
+	status=$(ubus -t 1 call hostapd.ap0 get_status 2>/dev/null |
+		jsonfilter -e '@.status' 2>/dev/null)
+	if [ "$status" = ENABLED ]; then
+		ifconfig ap0 192.168.50.1 netmask 255.255.255.0 up &
+		address_pid=$!
+		read uptime rest </proc/uptime
+		address_deadline=$((${uptime%%.*} + 10))
+		while kill -0 "$address_pid" 2>/dev/null; do
+			read uptime rest </proc/uptime
+			if [ "${uptime%%.*}" -ge "$address_deadline" ]; then
+				kill "$address_pid" 2>/dev/null
+				echo '设置热点地址超时，DHCP 未启动' >&2
+				exit 1
+			fi
+			sleep 1
+		done
+		wait "$address_pid" || exit 1
+		exec /usr/sbin/dnsmasq --keep-in-foreground --log-facility=- \
+			--conf-file=/etc/cm2012/dnsmasq-ap.conf
+	fi
+	sleep 1
+done
+echo '等待热点启用超时，DHCP 未启动' >&2
+exit 1

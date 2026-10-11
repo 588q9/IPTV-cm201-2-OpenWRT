@@ -1,0 +1,173 @@
+{
+  "format": 1,
+  "resources": [
+    {
+      "id": "openwrt-rootfs",
+      "version": "25.12.5",
+      "path": "local/cache/openwrt-25.12.5-armsr-armv7-generic-targz-rootfs.tar.gz",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/targets/armsr/armv7/openwrt-25.12.5-armsr-armv7-generic-targz-rootfs.tar.gz",
+      "size": 4956162,
+      "sha256": "2b78ac4bcabcc7056a238d0f56b3f35dd73d635c9827dee80746b4f43e1c6111"
+    },
+    {
+      "id": "ubus-source",
+      "version": "24864e7840b3a02a9ef76284a373f6b2f00b8a9b",
+      "path": "local/cache/ubus-source.tar.gz",
+      "url": "https://codeload.github.com/openwrt/ubus/tar.gz/24864e78",
+      "size": 53722,
+      "sha256": "2593c373bc43d7c7417d3585935913df0b375430a4365cec9f60a929e006b3af"
+    },
+    {
+      "id": "libubox-source",
+      "version": "7dd127841e82eb1cfb61185da37dde7b9bd9ba6d",
+      "path": "local/cache/ubox-source.tar.gz",
+      "url": "https://codeload.github.com/openwrt/libubox/tar.gz/7dd12784",
+      "size": 107643,
+      "sha256": "f4d6b5511e66b56027ba818d2a0e1dfe544077909d54921ad7a27b37abbb3719"
+    },
+    {
+      "id": "mtd-utils-source",
+      "version": "2.1.6",
+      "path": "local/cache/mtd-utils-2.1.6.tar.bz2",
+      "url": "https://infraroot.at/pub/mtd/mtd-utils-2.1.6.tar.bz2",
+      "size": 458333,
+      "sha256": "c1d853bc4adf83bcabd2792fc95af33bdd8643c97e8f7b3f0180af36af76f0e5"
+    },
+    {
+      "id": "zig",
+      "version": "0.13.0",
+      "path": "local/cache/zig-windows-0.13.0.zip",
+      "url": "https://ziglang.org/download/0.13.0/zig-windows-x86_64-0.13.0.zip",
+      "size": 79163968,
+      "sha256": "d859994725ef9402381e557c60bb57497215682e355204d754ee3df75ee3c158"
+    },
+    {
+      "id": "hiloot-source",
+      "version": "56b598ab7fd62a2b7ddce6e7b3770d93c40f4801",
+      "path": "local/cache/hiloot-source.tar.gz",
+      "url": "https://codeload.github.com/histb-mainline/hiloot/tar.gz/56b598ab7fd62a2b7ddce6e7b3770d93c40f4801",
+      "size": 30951,
+      "sha256": "2e8d9f062310f4192171054636958c39f3d4e01bea8a0cf68718b2f2a2ab6ce5"
+    },
+    {
+      "id": "openwrt-base-index",
+      "version": "25.12.5-2026-10-11",
+      "path": "local/cache/apk/packages.adb",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/packages.adb",
+      "size": 110335,
+      "sha256": "382d024b8ed979e0349eaa5f6a2bfbbfe885f49ee9af786a37ee0dc64e7158b9"
+    },
+    {
+      "id": "hostapd-basic",
+      "version": "2025.08.26~ca266cc2-r5",
+      "path": "local/cache/apk/hostapd-basic-2025.08.26~ca266cc2-r5.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/hostapd-basic-2025.08.26~ca266cc2-r5.apk",
+      "size": 329740,
+      "sha256": "d20e53159a489600dcbd8e689b1240fb136a907a2902f163bfe491e35a9835e4"
+    },
+    {
+      "id": "hostapd-common",
+      "version": "2025.08.26~ca266cc2-r5",
+      "path": "local/cache/apk/hostapd-common-2025.08.26~ca266cc2-r5.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/hostapd-common-2025.08.26~ca266cc2-r5.apk",
+      "size": 1730,
+      "sha256": "12abae07e7508b5f0477553ef99de636f9b4bced18124b9d21383cd40bdc01b6"
+    },
+    {
+      "id": "wpa-supplicant-basic",
+      "version": "2025.08.26~ca266cc2-r5",
+      "path": "local/cache/apk/wpa-supplicant-basic-2025.08.26~ca266cc2-r5.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/wpa-supplicant-basic-2025.08.26~ca266cc2-r5.apk",
+      "size": 284589,
+      "sha256": "e65703868a9f34049383ae27cff58582107eb27b5510d293eb50f9ed97d36f4e"
+    },
+    {
+      "id": "iw",
+      "version": "6.17-r1",
+      "path": "local/cache/apk/iw-6.17-r1.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/iw-6.17-r1.apk",
+      "size": 52273,
+      "sha256": "98340db4cc3d49f032ef4ad2bedb92ab3b29d73806d0626148a5fd7e0cb8ba0b"
+    },
+    {
+      "id": "ucode-mod-digest",
+      "version": "2026.01.16~85922056-r2",
+      "path": "local/cache/apk/ucode-mod-digest-2026.01.16~85922056-r2.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/ucode-mod-digest-2026.01.16~85922056-r2.apk",
+      "size": 15923,
+      "sha256": "5b064d6ec587777a48a35419616e2b94bcd3d88056dd9b5d18d039d6439c5fbd"
+    },
+    {
+      "id": "ucode-mod-nl80211",
+      "version": "2026.01.16~85922056-r2",
+      "path": "local/cache/apk/ucode-mod-nl80211-2026.01.16~85922056-r2.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/ucode-mod-nl80211-2026.01.16~85922056-r2.apk",
+      "size": 21465,
+      "sha256": "4226d0fb7e15cfb301c4c3447598ba03404c48a5589e42bbb8ce41f1fd4b27d3"
+    },
+    {
+      "id": "ucode-mod-rtnl",
+      "version": "2026.01.16~85922056-r2",
+      "path": "local/cache/apk/ucode-mod-rtnl-2026.01.16~85922056-r2.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/ucode-mod-rtnl-2026.01.16~85922056-r2.apk",
+      "size": 27733,
+      "sha256": "4404c9f081a8ba4b8f14ba0998345c7e67d85c62af06f95e0fd0470fa786c1e5"
+    },
+    {
+      "id": "wifi-scripts",
+      "version": "1.0-r1",
+      "path": "local/cache/apk/wifi-scripts-1.0-r1.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/wifi-scripts-1.0-r1.apk",
+      "size": 70390,
+      "sha256": "ef0c31034ce755ecb9aeecd7bcb94b380f8f1cb842e8bc11401e39576a92c7c9"
+    },
+    {
+      "id": "pyserial",
+      "version": "3.5",
+      "path": "local/cache/pyserial-3.5-py2.py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/07/bc/587a445451b253b285629263eb51c2d8e9bcea4fc97826266d186f96f558/pyserial-3.5-py2.py3-none-any.whl",
+      "size": 90585,
+      "sha256": "c4451db6ba391ca6ca299fb3ec7bae67a5c55dde170964c7a14ceefec02f2cf0"
+    },
+    {
+      "id": "pyserial-asyncio",
+      "version": "0.6",
+      "path": "local/cache/pyserial_asyncio-0.6-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/27/24/c820cf15f87f7b164e83710c1852d4f900d9793961579e5ef64189bc0c10/pyserial_asyncio-0.6-py3-none-any.whl",
+      "size": 7594,
+      "sha256": "de9337922619421b62b9b1a84048634b3ac520e1d690a674ed246a2af7ce1fc5"
+    },
+    {
+      "id": "ymodem",
+      "version": "1.5.3",
+      "path": "local/cache/ymodem-1.5.3-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/ff/6b/66ffe5ce3359981e8517c4e26d59e80d29ccbd9766d2abdc1c6eb199775b/ymodem-1.5.3-py3-none-any.whl",
+      "size": 22082,
+      "sha256": "79b4e88c70afc277369183c98d1443e57d545e5e3cecb6144aa07138a69aaf10"
+    },
+    {
+      "id": "ordered-set",
+      "version": "4.1.0",
+      "path": "local/cache/ordered_set-4.1.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/33/55/af02708f230eb77084a299d7b08175cff006dea4f2721074b92cdb0296c0/ordered_set-4.1.0-py3-none-any.whl",
+      "size": 7634,
+      "sha256": "046e1132c71fcf3330438a539928932caf51ddbc582496833e23de611de14562"
+    },
+    {
+      "id": "passlib",
+      "version": "1.7.4",
+      "path": "local/cache/passlib-1.7.4-py2.py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/3b/a4/ab6b7589382ca3df236e03faa71deac88cae040af60c071a78d254a62172/passlib-1.7.4-py2.py3-none-any.whl",
+      "size": 525554,
+      "sha256": "aa6bca462b8d8bda89c70b382f0c298a20b5560af6cbfa2dce410c0a2fb669f1"
+    },
+    {
+      "id": "pycryptodomex",
+      "version": "3.24.0",
+      "path": "local/cache/pycryptodomex-3.24.0-cp37-abi3-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/4d/91/fa406bbeea093b53d314dfb0fd186658a69a398b73a3a609636b8402b5c3/pycryptodomex-3.24.0-cp37-abi3-win_amd64.whl",
+      "size": 1825514,
+      "sha256": "55f22d72250d7923aac3c2442ec6a1dd8774d2efa3bdcb0f68d5e137d372268e"
+    }
+  ]
+}

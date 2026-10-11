@@ -1,0 +1,12 @@
+* text=auto eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.c text eol=lf
+*.patch text eol=lf
+tools/internal-root-init text eol=lf
+configs/templates/* text eol=lf
+tools/cm2012/device/* text eol=lf
+tools/cm2012/patches/ubusd-3.18.patch whitespace=-blank-at-eol,-space-before-tab
+LICENSES/LGPL-2.1-only.txt whitespace=-blank-at-eof
