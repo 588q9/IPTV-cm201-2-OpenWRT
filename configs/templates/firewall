@@ -1,0 +1,8 @@
+#!/bin/sh /etc/rc.common
+START=19
+STOP=89
+start() { /sbin/fw3 start; }
+stop() { /sbin/fw3 stop; }
+reload() { /sbin/fw3 reload; }
+restart() { /sbin/fw3 restart; }
+boot() { start; }

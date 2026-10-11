@@ -168,6 +168,30 @@
       "url": "https://files.pythonhosted.org/packages/4d/91/fa406bbeea093b53d314dfb0fd186658a69a398b73a3a609636b8402b5c3/pycryptodomex-3.24.0-cp37-abi3-win_amd64.whl",
       "size": 1825514,
       "sha256": "55f22d72250d7923aac3c2442ec6a1dd8774d2efa3bdcb0f68d5e137d372268e"
+    },
+    {
+      "id": "firewall3-source",
+      "version": "3a65fde5a3e675fdf2a24cb3f5d12d0a426be36e",
+      "url": "https://codeload.github.com/openwrt/firewall3/tar.gz/3a65fde5a3e675fdf2a24cb3f5d12d0a426be36e",
+      "path": "local/cache/firewall3-source.tar.gz",
+      "size": 52776,
+      "sha256": "2f5e232757afc60adbb3210e05aa37b1d2488564ce67594e02fd48428886f478"
+    },
+    {
+      "id": "uci-source",
+      "version": "74f6277aabffc943d026f406df57c22595134c42",
+      "url": "https://codeload.github.com/openwrt/uci/tar.gz/74f6277aabffc943d026f406df57c22595134c42",
+      "path": "local/cache/uci-source.tar.gz",
+      "size": 61347,
+      "sha256": "cb6d18d21b23f9416e8ebbfb5ee1f598ca8ff3f127da8f4ca2008b4e06b77ed5"
+    },
+    {
+      "id": "iptables-source",
+      "version": "1.8.8",
+      "url": "https://www.netfilter.org/projects/iptables/files/iptables-1.8.8.tar.bz2",
+      "path": "local/cache/iptables-1.8.8.tar.bz2",
+      "size": 746985,
+      "sha256": "71c75889dc710676631553eb1511da0177bbaaf1b551265b912d236c3f51859f"
     }
   ]
 }

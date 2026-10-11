@@ -26,6 +26,9 @@ def main():
     ram = commands.add_parser('ram-test', help='通过串口启动新 RAM 镜像，NAND 只读')
     ram.add_argument('--output', type=Path, default=ROOT / 'output/current')
     ram.add_argument('--bootstrap', action='store_true', help='仅启动独立 RAM 构建环境')
+    install = commands.add_parser('install', help='只重建 userdata 根系统，清除内部配置与密钥')
+    install.add_argument('--output', type=Path, default=ROOT / 'output/current')
+    install.add_argument('--erase-internal-root', action='store_true', required=True)
     commands.add_parser('restore', help='RAM 验收后同步并重启回原内部系统')
     args = parser.parse_args()
     from cm2012.resources import prepare as prepare_resources, read_lock, verify_resource
@@ -73,6 +76,10 @@ def main():
         activate_dependencies(ROOT)
         from cm2012.ram import ram_test
         ram_test(ROOT, config, stock, output, bootstrap=args.bootstrap)
+    elif args.command == 'install':
+        activate_dependencies(ROOT)
+        from cm2012.installer import install
+        install(ROOT, config, stock, output, erase_internal_root=args.erase_internal_root)
 
 
 if __name__ == '__main__':

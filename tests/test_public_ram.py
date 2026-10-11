@@ -12,6 +12,52 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 
 
 class RamTests(unittest.TestCase):
+    def test_restore_ignores_prompt_before_reboot_starts(self):
+        module = self.module()
+        class RebootWire:
+            def __init__(self):
+                self.parts = [b'root@OpenWrt:~# ',
+                    'CM2012 内部 OpenWrt 根系统入口\nPlease press Enter\n'.encode(),
+                    b'root@OpenWrt:~# ']
+            def write(self, data): return len(data)
+            def read(self, count): return self.parts.pop(0) if self.parts else b''
+        class RebootLink:
+            def __init__(self): self.wire = RebootWire()
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def command(self, text): return ''
+        link = RebootLink()
+        with patch.object(module, 'Link', return_value=link):
+            module.restore_internal({'port':'COM-test'})
+        self.assertEqual(link.wire.parts, [], '旧提示符不能证明新的内部系统已启动')
+
+    def test_remount_completion_is_visible_after_quiet_transfer(self):
+        module = self.module()
+        class QuietLink:
+            level = 1
+            wire = None
+            def __init__(self): self.wire = self
+            def command(self, text):
+                if 'dmesg -n 7' in text: self.level = 7
+            def send_break(self, duration): pass
+            def write(self, data): self.assert_reset = data == b'u'
+            def until(self, marker, timeout):
+                if self.level < 7: raise TimeoutError('卸载完成日志被控制台级别屏蔽')
+                return b'Emergency Remount complete'
+        module.prepare_reset(QuietLink())
+
+    def test_bootrom_handoff_keeps_existing_connection_open(self):
+        import asyncio
+        events = []
+        class Port:
+            def send_break(self, duration): events.append('break')
+            def write(self, data): events.append(data)
+            def close(self): self.fail('不得在握手前关闭串口')
+        class Device:
+            async def connect(self, timeout): events.append('connect')
+        asyncio.run(self.module().connect_after_reset(Port(), Device()))
+        self.assertEqual(events, ['break', b'b', 'connect'])
+
     def module(self):
         try:
             return importlib.import_module('cm2012.ram')
@@ -42,6 +88,12 @@ class RamTests(unittest.TestCase):
             module.bootargs_for(8589934592, 64 * 1048576)
 
     def test_uimage_crc_uses_header_at_start_of_kernel_blob(self):
+        module = self.module()
+        args = module.bootargs_for(8589934592, 1048576, installation=True)
+        parts = args.split('mtdparts=hinand:')[1].split(',')
+        self.assertTrue(parts[0].endswith('(fastboot)ro'))
+        self.assertTrue(parts[-1].endswith('(userdata)'))
+        self.assertNotIn('ubi.mtd=', args)
         import zlib
         module = self.module()
         payload = b'kernel-data'

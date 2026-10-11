@@ -30,10 +30,10 @@ def patch_bootloader(original, expected_sha):
     return bytes(patched)
 
 
-def bootargs_for(total, ram_size):
+def bootargs_for(total, ram_size, *, installation=False):
     if not 0 < ram_size < 0x08d00000 - 0x06000000:
         raise ValueError('RAM initramfs 超出已验证装载区间')
-    args = CMDLINE + f'initrd=0x06000000,{ram_size:#x} mtdparts=hinand:' + bootargs_map(total)
+    args = CMDLINE + f'initrd=0x06000000,{ram_size:#x} mtdparts=hinand:' + bootargs_map(total, readonly=not installation)
     if len(('setenv bootargs ' + args).encode()) >= 500:
         raise ValueError('RAM 参数超过原厂控制台行限制')
     return args
@@ -45,6 +45,20 @@ class NullLog:
 
     def flush(self):
         pass
+
+
+async def connect_after_reset(port, device):
+    port.send_break(.15)
+    port.write(b'b')
+    await device.connect(timeout=30)
+
+
+def prepare_reset(link):
+    # 高速传输会抑制内核控制台日志；SysRq 完成提示必须重新可见。
+    link.command('sync; dmesg -n 7')
+    link.wire.send_break(.15)
+    link.wire.write(b'u')
+    link.until(b'Emergency Remount complete', 20)
 
 
 async def bootrom_console(root, config, stock):
@@ -59,10 +73,15 @@ async def bootrom_console(root, config, stock):
     if (sha256(bytes(params.regs[1])) != '8f2d25d2bf51cf1426950186e0dd9b9176dd25c92e487b1b9fb3c26e821d8931' or
             params.head.size != 0x3000 or params.aux.size != 0x5400 or params.boot.end != 0xd9200):
         raise ValueError('原厂 DDR 或 BootROM 区间与已验证参数不一致')
-    port = serial.Serial(None, 115200, dsrdtr=False, rtscts=False)
-    port.dtr = port.rts = False
-    port.port = config['port']
-    port.open()
+    # 先加载上游模块、验证 DDR，再在同一连接重启，不能关闭/重开错过 BootROM。
+    link = Link(config['port'])
+    link.__enter__()
+    port = link.wire
+    try:
+        prepare_reset(link)
+    except BaseException:
+        link.__exit__()
+        raise
     reader = asyncio.StreamReader(limit=131072)
     protocol = asyncio.StreamReaderProtocol(reader)
     transport, _ = await serial_asyncio.connection_for_serial(asyncio.get_running_loop(), lambda: protocol, port)
@@ -71,7 +90,8 @@ async def bootrom_console(root, config, stock):
     device = Device(reader, writer, 4, SerialLogger(sink))
     device.logbuf = sink
     try:
-        await device.connect(timeout=30)
+        await connect_after_reset(port, device)
+        print('BootROM 握手成功，正在装载已校验的 DDR 与 RAM 引导副本', flush=True)
         chip = await device.get_chip()
         if chip.chipid != 1 or chip.sysid != 0x37980210:
             raise ValueError('BOOTROM 芯片不匹配')
@@ -96,10 +116,7 @@ async def bootrom_console(root, config, stock):
 
 def reset_to_rom(config):
     with Link(config['port']) as link:
-        link.command('sync')
-        link.wire.send_break(.15)
-        link.wire.write(b'u')
-        link.until(b'Emergency Remount complete', 20)
+        prepare_reset(link)
         link.wire.send_break(.15)
         link.wire.write(b'b')
         # 后续仅由 BootROM 的单连接接管，不能再向新阶段发送 shell 命令。
@@ -198,7 +215,7 @@ def checked_ram_boot(wire, args):
     wire.write(b'bootm 0x020007c0\r')
 
 
-def wait_console(wire, timeout=60, log=None):
+def wait_console(wire, timeout=60, log=None, boot_marker=None):
     captured, deadline = bytearray(), time.monotonic() + timeout
     last_enter = float('-inf')
     while time.monotonic() < deadline:
@@ -206,7 +223,8 @@ def wait_console(wire, timeout=60, log=None):
         captured.extend(part)
         if log is not None:
             log.write(part)
-        if b'root@OpenWrt' in captured:
+        start = 0 if boot_marker is None else captured.find(boot_marker)
+        if start >= 0 and b'root@OpenWrt' in captured[start:]:
             return bytes(captured)
         now = time.monotonic()
         if b'Please press Enter' in captured and now - last_enter >= 1:
@@ -215,7 +233,9 @@ def wait_console(wire, timeout=60, log=None):
     raise TimeoutError('启动后未检测到串口控制台；保留日志检查当前状态')
 
 
-def ram_test(root, config, stock, output, bootstrap=False):
+def ram_test(root, config, stock, output, bootstrap=False, *, installation=False):
+    if bootstrap and installation:
+        raise ValueError('bootstrap 不接受安装映射')
     if bootstrap:
         binaries = compile_all(root)
         entries = make_seed(root, stock, config)
@@ -236,9 +256,8 @@ def ram_test(root, config, stock, output, bootstrap=False):
     validate_uimage(kernel)
     kernel_path = output / 'kernel.uImage'
     kernel_path.write_bytes(kernel)
-    args = bootargs_for(config['profile']['total_bytes'], ram_path.stat().st_size)
+    args = bootargs_for(config['profile']['total_bytes'], ram_path.stat().st_size, installation=installation)
     print('即将暂时中断热点并同步内部系统，再执行 RAM 启动', flush=True)
-    reset_to_rom(config)
     asyncio.run(bootrom_console(root, config, stock))
     import serial
     wire = serial.Serial(None, 115200, timeout=.1, write_timeout=10)
@@ -259,6 +278,9 @@ def ram_test(root, config, stock, output, bootstrap=False):
     finally:
         if wire.is_open:
             wire.close()
+    if not bootstrap and not installation:
+        from .installer import record_ram_acceptance
+        record_ram_acceptance(config, output)
 
 
 def restore_internal(config):
@@ -266,5 +288,6 @@ def restore_internal(config):
     with Link(config['port']) as link:
         link.command('sync')
         link.wire.write(b'reboot\r')
-        wait_console(link.wire)
-        print('已恢复原内部 OpenWrt 串口控制台', flush=True)
+        wait_console(link.wire, boot_marker='CM2012 内部 OpenWrt 根系统入口'.encode())
+        link.command('dmesg -n 1')
+        print('内部 OpenWrt 已重新启动，串口控制台就绪', flush=True)

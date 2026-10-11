@@ -7,6 +7,7 @@
 !/LICENSES/
 /LICENSES/*
 !/LICENSES/LGPL-2.1-only.txt
+!/LICENSES/GPL-2.0-only.txt
 !/THIRD_PARTY.md
 !/resources.lock.json
 !/requirements.lock
@@ -22,6 +23,10 @@
 /tests/*
 !/tests/test_public_*.py
 !/tests/fixtures/
+!/tests/device/
+/tests/device/*
+!/tests/device/cm2012-rpc.uc
+!/tests/device/cm2012-wireless.uc
 !/configs/
 /configs/*
 !/configs/templates/
@@ -39,3 +44,17 @@
 !/.github/
 **/__pycache__/
 *.pyc
+*.pyo
+
+# 白名单目录内也可能生成测试、检查器及编译缓存。
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.zig-cache/
+**/zig-cache/
+**/zig-local-cache/
+**/zig-out/
+
+# 本地调试日志不进入版本控制。
+/log/
+*.log

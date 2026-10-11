@@ -25,6 +25,20 @@ class BuildTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             module.require_space(290815, 290816)
 
+    def test_device_geometry_does_not_depend_on_retained_boot_log(self):
+        class Device:
+            def command(self, command):
+                if command == 'uname -r': return '3.18.24_hi3798mv2x\n'
+                if 'CM_GEOMETRY' in command:
+                    return 'CM_GEOMETRY mlc-nand 2097152 8192 744 60 1024\n'
+                if 'CM_SIZE' in command:
+                    return 'CM_SIZE 50331648\nCM_SIZE 8539602944\n'
+                if command == 'apk --version': return 'apk-tools 3.0.5, compiled for armv7.\n'
+                raise AssertionError('不应依赖已覆盖的 dmesg: ' + command)
+        geometry = self.module().check_device(Device(), {'profile': {'total_bytes': 8589934592}})
+        self.assertEqual(geometry['mtd_ecc_strength'], 60)
+        self.assertEqual(geometry['mtd_ecc_step_bytes'], 1024)
+
     def test_runtime_secrets_removed_without_removing_stock_firmware(self):
         module = self.module()
         from cm2012.archives import Entry
@@ -89,9 +103,10 @@ class BuildTests(unittest.TestCase):
                                    ('safe', '{{SSID}}')):
                 overlay = module.make_overlay(Path(__file__).resolve().parents[1],
                     {'ssid': ssid, 'ap_password': password}, {'ubusd': binary})
-                config = overlay['etc/cm2012/hostapd.conf'].data.decode()
-                self.assertIn('\nssid=' + ssid + '\n', '\n' + config)
-                self.assertIn('\nwpa_passphrase=' + password + '\n', '\n' + config)
+                from cm2012.runtime import quote
+                config = overlay['etc/config/cm2012'].data.decode()
+                self.assertIn('option ssid ' + quote(ssid), config)
+                self.assertIn('option key ' + quote(password), config)
 
     def test_outputs_deliver_only_the_controlled_ram_artifact(self):
         from cm2012.archives import Entry, read_tar_bytes, tar_bytes
@@ -107,8 +122,18 @@ class BuildTests(unittest.TestCase):
         entries = {name: Entry(stat.S_IFREG | 0o755, bytes(program)) for name in
                    ('sbin/init', 'sbin/ubusd', 'usr/sbin/hostapd', 'usr/sbin/uhttpd',
                     'usr/sbin/dnsmasq', 'etc/init.d/cm2012-ap', 'bin/busybox',
+                    'usr/sbin/wpa_supplicant', 'usr/sbin/xtables-legacy-multi', 'sbin/fw3',
+                    'usr/libexec/cm2012-wifi', 'usr/libexec/cm2012-wpa-control',
+                    'usr/libexec/cm2012-net-probe', 'usr/libexec/cm2012-serial-transfer',
+                    'etc/init.d/firewall', 'etc/init.d/sysntpd',
                     'lib/libc.so', 'lib/libgcc_s.so.1')}
-        entries.update({'etc/cm2012/hostapd.conf': Entry(stat.S_IFREG | 0o600, b'config'),
+        entries.update({'etc/config/cm2012': Entry(stat.S_IFREG | 0o600, b'config'),
+            'usr/share/rpcd/ucode/cm2012': Entry(stat.S_IFREG | 0o644, b'rpc'),
+            'usr/libexec/cm2012-wireless-lib.uc': Entry(stat.S_IFREG | 0o644, b'lib'),
+            'usr/libexec/cm2012-supplicant.uc': Entry(stat.S_IFREG | 0o644, b'render'),
+            'usr/share/rpcd/acl.d/luci-app-cm2012.json': Entry(stat.S_IFREG | 0o644, b'{}'),
+            'usr/share/luci/menu.d/luci-app-cm2012.json': Entry(stat.S_IFREG | 0o644, b'{}'),
+            'www/luci-static/resources/view/cm2012/wireless.js': Entry(stat.S_IFREG | 0o644, b'view'),
             'etc/cm2012-internal-root': Entry(stat.S_IFREG | 0o644, b'CM2012_INTERNAL_OPENWRT25\n'),
             'etc/passwd': Entry(stat.S_IFREG | 0o644, b'network:*:101:101:n:/var:/bin/false\nubus:*:81:81:u:/var:/bin/false\n')})
         from fixtures.arm_module import module_bytes
@@ -116,6 +141,11 @@ class BuildTests(unittest.TestCase):
         entries.update({'lib/modules/3.18.24_hi3798mv2x/' + name: Entry(stat.S_IFREG | 0o644, module_bytes()) for name in MODULES})
         entries.update({'lib/firmware/' + name: Entry(stat.S_IFREG | 0o644, b'firmware') for name in FIRMWARE})
         entries = read_tar_bytes(tar_bytes(entries))
+        module.validate_root(entries)
+        incomplete = dict(entries)
+        incomplete.pop('sbin/fw3')
+        with self.assertRaises(ValueError):
+            module.validate_root(incomplete)
         with tempfile.TemporaryDirectory() as folder:
             target = Path(folder)
             binary = target / 'helper'

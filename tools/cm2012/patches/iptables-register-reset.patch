@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Source: OpenWrt v23.05.5 package/network/utils/iptables/patches/101-remove-check-already.patch
+# https://raw.githubusercontent.com/openwrt/openwrt/v23.05.5/package/network/utils/iptables/patches/101-remove-check-already.patch
+# Upstream patch SHA256: 26c8ef3c065dcd252b9efe7f1c0528c25dc664ec0d63368ac4efca9301a76e62
+# Hunk offsets adjusted for locked unmodified iptables 1.8.8 source.
+--- a/libxtables/xtables.c
++++ b/libxtables/xtables.c
+@@ -1089,12 +1089,6 @@
+ 	struct xtables_match **pos;
+ 	bool seen_myself = false;
+ 
+-	if (me->next) {
+-		fprintf(stderr, "%s: match \"%s\" already registered\n",
+-			xt_params->program_name, me->name);
+-		exit(1);
+-	}
+-
+ 	if (me->version == NULL) {
+ 		fprintf(stderr, "%s: match %s<%u> is missing a version\n",
+ 		        xt_params->program_name, me->name, me->revision);
+@@ -1272,12 +1266,6 @@
+ {
+ 	struct xtables_target **pos;
+ 	bool seen_myself = false;
+-
+-	if (me->next) {
+-		fprintf(stderr, "%s: target \"%s\" already registered\n",
+-			xt_params->program_name, me->name);
+-		exit(1);
+-	}
+ 
+ 	if (me->version == NULL) {
+ 		fprintf(stderr, "%s: target %s<%u> is missing a version\n",

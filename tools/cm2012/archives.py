@@ -103,3 +103,39 @@ def cpio_bytes(entries):
         add(name, entry, inode)
     add('TRAILER!!!', Entry(0), len(entries) + 1)
     return bytes(output)
+
+
+def read_cpio_bytes(data):
+    """严格读取小型内部维护根；不在主机解包任何设备文件。"""
+    if len(data) > 16 * 1048576:
+        raise ValueError('内部维护根过大')
+    result, offset = {}, 0
+    while offset + 110 <= len(data):
+        header = data[offset:offset + 110]
+        if header[:6] != b'070701':
+            raise ValueError('维护根不是 newc')
+        try:
+            fields = [int(header[6 + i * 8:14 + i * 8], 16) for i in range(13)]
+        except ValueError as error:
+            raise ValueError('newc 字段非法') from error
+        offset += 110
+        size, namesize = fields[6], fields[11]
+        if not 1 <= namesize <= 256 or offset + namesize > len(data):
+            raise ValueError('newc 名称长度非法')
+        encoded = data[offset:offset + namesize]
+        if encoded[-1:] != b'\0' or b'\0' in encoded[:-1]:
+            raise ValueError('newc 名称终止错误')
+        name = safe_name(encoded[:-1].decode('utf-8'))
+        offset = (offset + namesize + 3) & ~3
+        if offset + size > len(data):
+            raise ValueError('newc 数据不完整')
+        payload = data[offset:offset + size]
+        offset = (offset + size + 3) & ~3
+        if name == 'TRAILER!!!':
+            if size or any(data[offset:]):
+                raise ValueError('newc 尾部非法')
+            return result
+        if name in result or fields[4] != 1 or fields[12] != 0:
+            raise ValueError('newc 重复文件或未支持的链接/校验格式')
+        result[name] = Entry(fields[1], payload, fields[2], fields[3], fields[9], fields[10])
+    raise ValueError('newc 缺少结束标记')

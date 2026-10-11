@@ -32,6 +32,7 @@ guard() {
     (cd "$resources" && sha256sum -c tools.sha256) || fail '维护工具摘要错误'
 }
 check_files() {
+    hash_file "$resources/root-files.sha256" "$ROOT_FILES_SHA"
     hash_file "$resources/boot.img" "$BOOT_SHA"
     hash_file "$resources/ptable.bin" "$PTABLE_SHA"
     hash_file "$resources/mlcverify.bin" "$MLC_SHA"
@@ -117,6 +118,13 @@ ptable)
 root)
     [ "${2:-}" = CM2012_ERASE_INTERNAL_ROOT ] || fail 'root 阶段必须人工明确指定擦除令牌'
     guard; check_files; require_write 8
+    case "${3:-}" in ''|*[!0-9]*) fail '缺少已核对的保留 boot 长度';; esac
+    [ "$3" -ge 2048 ] && [ "$3" -le 12582912 ] || fail '保留 boot 长度越界'
+    [ "${#4}" = 64 ] || fail '缺少已核对的保留 boot 摘要'
+    case "$4" in *[!a-f0-9]*) fail '保留 boot 摘要非法';; esac
+    read_hash 1 0 2832 "$PTABLE_SHA"
+    read_hash 1 4194304 2832 "$PTABLE_SHA"
+    read_hash 7 0 "$3" "$4"
     root_target_free /sys/class/ubi /proc/mounts /tmp/cm2012-newroot
     "$resources/ubiformat" /dev/mtd8 -y || fail 'UBI 格式化失败'
     "$resources/ubiattach" -m 8 -d 0 || fail 'UBI 挂接失败'
@@ -124,6 +132,7 @@ root)
     mkdir /tmp/cm2012-newroot
     mount -t ubifs ubi0:rootfs /tmp/cm2012-newroot || fail 'UBIFS 挂载失败'
     tar -xzf "$resources/rootfs.tar.gz" -C /tmp/cm2012-newroot || fail '根系统解包失败'
+    (cd /tmp/cm2012-newroot && sha256sum -c "$resources/root-files.sha256") || fail '已安装文件摘要错误'
     [ "$(cat /tmp/cm2012-newroot/etc/cm2012-internal-root)" = CM2012_INTERNAL_OPENWRT25 ] || fail '完成标识错误'
     sync; umount /tmp/cm2012-newroot || fail '根系统卸载失败'
     ;;

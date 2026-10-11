@@ -154,7 +154,8 @@ class Link:
         line = text + separator + f'printf "\\n{token}=%s\\n" "$?"'
         if len(line.encode()) > 500 or '\n' in line or '\r' in line:
             raise ValueError('串口控制命令超过控制台行限制')
-        control = (line + '\r').encode()
+        # 高速传输/旧驱动可能留下编辑缓冲字节，先清行，避免拼接成另一条命令。
+        control = b'\x15' + (line + '\r').encode()
         # 旧内核在无线初始化期间曾发生输入溢出；短段之间留出处理时间。
         for offset in range(0, len(control), 16):
             self.wire.write(control[offset:offset + 16])
@@ -192,6 +193,9 @@ class Link:
             raise ValueError('盒子文件 SHA256 不一致')
 
     def switch(self, command):
+        # 原厂无线日志也写串口；二进制传输期间禁止其混入帧确认。
+        # 日志仍保留在 dmesg，RAM 重启入口会恢复所需控制台级别。
+        self.command('dmesg -n 1')
         self.wire.write((command + '\r').encode())
         while self.until(b'\n').rstrip(b'\r\n') != b'CM3_SWITCH':
             pass

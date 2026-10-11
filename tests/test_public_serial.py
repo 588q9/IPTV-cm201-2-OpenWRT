@@ -84,6 +84,7 @@ class SerialTests(unittest.TestCase):
         link = object.__new__(module.Link)
         link.wire = EchoWire(b'')
         self.assertIn('result', link.command('printf result', timeout=.1))
+        self.assertTrue(link.wire.sent.startswith(b'\x15'))
 
     def test_lost_ack_retransmits_same_block_before_advancing(self):
         module = self.module()
@@ -164,6 +165,31 @@ class SerialTests(unittest.TestCase):
         link.wire = ShellWire(b'')
         link.restore()
         self.assertIn('ready', link.command('printf ready', timeout=.1))
+
+    def test_kernel_console_noise_cannot_corrupt_transfer_ack(self):
+        module = self.module()
+        class NoisyConsole(Wire):
+            quiet = False
+            def __init__(self):
+                super().__init__(b''); self.line = bytearray()
+            def write(self, data):
+                if data == b'G':
+                    if not self.quiet: self.data.extend(b'wlan: driver notice\r\n')
+                    self.data.extend(b'CM3A' + struct.pack('<I', 0))
+                else:
+                    self.line.extend(data)
+                    if self.line.endswith(b'\r'):
+                        if b'dmesg -n 1' in self.line:
+                            self.quiet = True
+                            token = re.search(rb'CM_DONE_[a-z0-9]+', self.line).group()
+                            self.data.extend(token + b'=0\nroot@OpenWrt:~# ')
+                        else:
+                            self.data.extend(b'CM3_SWITCH\r\n')
+                        self.line.clear()
+                return len(data)
+        link = object.__new__(module.Link); link.wire = NoisyConsole()
+        link.switch('/tmp/cm2012-build-test/serial-transfer rx /tmp/cm2012-build-test/a 1')
+        self.assertTrue(module.frame_ack(link.wire, 0, .1))
 
     def test_background_command_keeps_valid_shell_separator(self):
         module = self.module()

@@ -12,6 +12,9 @@
 | ucode-mod-nl80211、ucode-mod-rtnl、ucode-mod-digest | 无线与网络脚本依赖 | 锁定 APK 元数据声明 ISC；保留上游版权与许可。 |
 | ubus，提交 `24864e7840b3a02a9ef76284a373f6b2f00b8a9b` | 构建兼容旧内核的 ubusd | `ubusd_id.c` 声明 GNU LGPL 2.1；本项目针对该文件的补丁标识为 LGPL-2.1-only，保留该许可。其他文件按其原声明处理。 |
 | libubox，提交 `7dd127841e82eb1cfb61185da37dde7b9bd9ba6d` | ubus 所需头文件及接口 | 按文件采用 ISC、LGPL 等授权；保留每个文件的版权和许可，不统一改为 MIT。 |
+| firewall3，提交 `3a65fde5a3e675fdf2a24cb3f5d12d0a426be36e` | 原厂内核的 UCI 防火墙后端 | 源文件包含 ISC 风格许可，保留完整版权及许可声明。 |
+| UCI，提交 `74f6277aabffc943d026f406df57c22595134c42` | firewall3 所需公开头文件 | 头文件声明 LGPL 2.1；使用官方根运行库，保留锁定源码中的声明。 |
+| iptables 1.8.8 | 静态 legacy 命令与 libxtables 运行库 | GPLv2 及文件级许可；锁定完整原始源码，再分发生成系统时提供相应源码及许可。Windows 构建重命名大小写冲突路径并改写对应 include，应用下述 firewall3 注册兼容补丁。 |
 | mtd-utils 2.1.6 | 编译 NAND、MTD 与 UBI 工具 | 包含 GPLv2 许可文本及文件级声明；保留这些声明，按实际编译文件执行对应授权要求。 |
 | hiloot，提交 `56b598ab7fd62a2b7ddce6e7b3770d93c40f4801` | BootROM 串口传输及原厂引导格式解析 | 上游包含 GPLv2 许可文本；使用完整锁定源码，保留上游许可。 |
 | Zig 0.13.0 | Windows 上交叉编译 ARM 程序 | Zig 项目及其捆绑编译器、运行库包含不同授权；保留完整工具发行包中的许可证。工具包不提交到本仓库。 |
@@ -35,5 +38,7 @@ Windows 运行依赖的固定版本和 wheel 摘要另列于 `requirements.lock`
 旧调试目录中的厂商源码摘录不进入公共版本。其中部分文件明示保留全部权利，部分 U-Boot 文件采用 GPL-2.0-or-later；不得因为本项目采用 MIT 就修改其许可或删除版权声明。
 
 ## 生成产物的分发
+
+`tools/cm2012/patches/iptables-register-reset.patch` 沿用 GPL-2.0-only，适配自 [OpenWrt v23.05.5 的固定补丁](https://raw.githubusercontent.com/openwrt/openwrt/v23.05.5/package/network/utils/iptables/patches/101-remove-check-already.patch)。源地址和原始摘要记在补丁头中，应用上下文针对锁定的 iptables 1.8.8；允许 firewall3 重置扩展列表后重新注册。附带的 [GPLv2 正文](LICENSES/GPL-2.0-only.txt) 来自锁定 iptables 源码的 COPYING，共 18092 字节，SHA256 为 `8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643`。
 
 本仓库首版交付代码、模板和锁定清单，使用者在本机生成产物。生成的镜像包含官方软件包、本机原厂资源以及本地管理配置，不能直接套用本仓库的 MIT 许可证公开分发。若另行分发系统，需要逐项核对软件包许可、保留授权文件并提供许可要求的对应源码，同时先移除密码摘要、设备参数、私钥和其他私人数据。

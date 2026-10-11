@@ -12,6 +12,8 @@ from .resources import extract_source, extract_zip, read_lock, verify_resource
 
 UBUSD_NEEDED = ('libubox.so.20260213', 'libblobmsg_json.so.20260213',
                 'libjson-c.so.5', 'libc.so')
+FW3_NEEDED = ('libxtables.so.12', 'libuci.so.20250120', 'libubus.so.20251202',
+              'libgcc_s.so.1', 'libubox.so.20260213', 'libc.so')
 
 
 def apply_patch(text, patch):
@@ -177,7 +179,9 @@ def compile_all(root):
         subprocess.run(args, cwd=cwd, env=environment, check=True)
 
     for filename, source in (('cm2012-switch-root', root / 'tools/internal_switch_root.c'),
-                             ('serial-transfer', root / 'tools/cm2012/serial_transfer.c')):
+                             ('serial-transfer', root / 'tools/cm2012/serial_transfer.c'),
+                             ('cm2012-wpa-control', root / 'tools/cm2012/wpa_control.c'),
+                             ('cm2012-net-probe', root / 'tools/cm2012/net_probe.c')):
         run(common + ['-static', '-s', str(source), '-o', str(output / filename)])
     ubus_flags = ['-fPIE', '-pie', '-std=gnu99', '-D_GNU_SOURCE', '-DUBUS_MAX_MSGLEN=1048576',
                   '-DUBUS_UNIX_SOCKET="/var/run/ubus/ubus.sock"', '-I' + str(headers.parent), '-I' + str(ubus)]
@@ -202,9 +206,19 @@ def compile_all(root):
                 ('nandwrite', 'nand-utils'), ('flash_erase', 'misc-utils')]
     for name, folder in programs:
         run(common + mtdflags + [str(mtd / folder / (name + '.c'))] + mtdobjs + ['-o', str(output / name)])
-    binaries = {name: output / name for name in ['ubusd', 'cm2012-switch-root', 'serial-transfer'] +
+    binaries = {name: output / name for name in ['ubusd', 'cm2012-switch-root', 'serial-transfer',
+                 'cm2012-wpa-control', 'cm2012-net-probe'] +
                  [n for n, _ in programs]}
+    from .legacy_firewall import compile_legacy
+    binaries.update(compile_legacy(root, resources, official, ubus, headers, linklibs,
+                                   common, run, output))
     for name, path in binaries.items():
-        elf_check(path, static=name != 'ubusd', expected_needed=UBUSD_NEEDED if name == 'ubusd' else ())
+        if name == 'libxtables.so.12':
+            info = elf_info(path.read_bytes())
+            if info['interpreter'] or info['needed'] != ('libc.so',):
+                raise ValueError('iptables 运行库依赖不匹配')
+            continue
+        expected = UBUSD_NEEDED if name == 'ubusd' else FW3_NEEDED if name == 'fw3' else ()
+        elf_check(path, static=name not in ('ubusd', 'fw3', 'libxtables.so.12'), expected_needed=expected)
     print('锁定源码编译与 ARM 架构检查完成', flush=True)
     return binaries

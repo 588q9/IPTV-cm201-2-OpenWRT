@@ -56,6 +56,8 @@ class ArchiveTests(unittest.TestCase):
         self.assertIn(b'bin/program\0', cpio)
         self.assertIn(b'TRAILER!!!\0', cpio)
         self.assertIn(b'ELF', cpio)
+        self.assertEqual(module.read_cpio_bytes(cpio), root)
+        with self.assertRaises(ValueError): module.read_cpio_bytes(cpio[:-20])
 
 
 if __name__ == '__main__':

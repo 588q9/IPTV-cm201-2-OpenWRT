@@ -29,7 +29,7 @@ for program in hostapd wpa_supplicant; do
     fi
 done
 tar -xzf "$job/overlay.tar.gz" -C "$job/root"
-rm -f "$job/root/etc/rc.d/S19dnsmasq"
+ln -sf ../init.d/dnsmasq "$job/root/etc/rc.d/S19dnsmasq"
 # 禁止生成或复制设备私钥、随机种子和运行时状态。
 rm -f "$job/root/etc/urandom.seed" "$job/root/etc/uhttpd.key" "$job/root/etc/uhttpd.crt"
 for key in "$job/root/etc/dropbear/"*host_key; do [ ! -f "$key" ] || rm -f "$key"; done

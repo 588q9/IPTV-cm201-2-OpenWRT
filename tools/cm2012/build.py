@@ -14,7 +14,6 @@ from .compiler import compile_all, elf_info
 from .images import check_boot, gz, make_boot, make_bundle, sha256
 from .hardware import MODULES, FIRMWARE, validate_support
 from .layout import bootargs_map
-from .profile import geometry_from_log
 from .resources import read_lock, verify_resource
 from .serial_link import Link
 
@@ -103,38 +102,49 @@ def validate_program(entries, name, visited=None, executable=True):
 
 
 def validate_root(entries):
-    needed = ('sbin/init', 'sbin/ubusd', 'usr/sbin/hostapd', 'usr/sbin/uhttpd',
-              'usr/sbin/dnsmasq', 'etc/init.d/cm2012-ap', 'etc/cm2012/hostapd.conf',
+    programs = ('sbin/init', 'sbin/ubusd', 'usr/sbin/hostapd', 'usr/sbin/uhttpd',
+                'usr/sbin/dnsmasq', 'etc/init.d/cm2012-ap', 'usr/sbin/wpa_supplicant',
+                'usr/sbin/xtables-legacy-multi', 'sbin/fw3', 'usr/libexec/cm2012-wifi',
+                'usr/libexec/cm2012-wpa-control', 'usr/libexec/cm2012-net-probe',
+                'usr/libexec/cm2012-serial-transfer', 'etc/init.d/firewall', 'etc/init.d/sysntpd')
+    needed = programs + ('etc/config/cm2012', 'usr/share/rpcd/ucode/cm2012',
+              'usr/libexec/cm2012-wireless-lib.uc', 'usr/libexec/cm2012-supplicant.uc',
+              'usr/share/rpcd/acl.d/luci-app-cm2012.json',
+              'usr/share/luci/menu.d/luci-app-cm2012.json',
+              'www/luci-static/resources/view/cm2012/wireless.js',
               'lib/modules/3.18.24_hi3798mv2x/wlan_mt7668_sdio.ko')
     for name in needed:
         resolve_file(entries, name)
     if entries.get('etc/cm2012-internal-root', Entry(0)).data != b'CM2012_INTERNAL_OPENWRT25\n':
         raise ValueError('根系统完成标识缺失')
-    for name in needed[:6]:
+    for name in programs:
         validate_program(entries, name)
     validate_accounts(entries.get('etc/passwd', Entry(0)).data.decode())
     validate_support(entries, 'lib/modules/3.18.24_hi3798mv2x/', 'lib/firmware/')
 
 
 def check_device(link, config):
-    output = link.command('uname -r; dmesg | grep "nand: Block:"').replace('\r', '')
+    output = link.command('uname -r').replace('\r', '')
     if not re.search(r'(?m)^3\.18\.24_hi3798mv2x$', output):
         raise ValueError('盒子内核不是已验证版本')
-    geometry = geometry_from_log(output)
-    if geometry['total_bytes'] != config['profile']['total_bytes']:
-        raise ValueError('物理 NAND 容量与原厂分区表不一致')
+    actual = link.command('printf "CM_GEOMETRY "; for field in type erasesize writesize oobsize ecc_strength ecc_step_size; do cat /sys/class/mtd/mtd0/$field | tr "\\n" " "; done; echo').replace('\r', '')
+    # 此固定原厂内核的 sysfs 报告 strength=60/step=1024；启动日志中的
+    # “ECC:40bits/1K”属于另一报告口径，不能作为 sysfs 字段的预期值。
+    if not re.search(r'(?m)^CM_GEOMETRY mlc-nand 2097152 8192 744 60 1024\s*$', actual):
+        raise ValueError('NAND 类型、块/页/OOB/ECC 几何不兼容')
     sizes = link.command('for e in /sys/class/mtd/mtd*; do n=${e##*mtd}; case "$n" in *[!0-9]*|"") continue;; esac; printf "CM_SIZE "; cat "$e/size"; done')
     values = list(map(int, re.findall(r'(?m)^CM_SIZE (\d+)\r*$', sizes)))
-    if not values or sum(values) != geometry['total_bytes']:
+    if not values or sum(values) != config['profile']['total_bytes']:
         raise ValueError('当前内核 MTD 物理总长度与容量不符')
     apk = link.command('apk --version')
     if 'apk-tools 3.0.5, compiled for armv7.' not in apk:
         raise ValueError('需要 apk 3.0.5 ARMv7；原厂 Android 请先启动 bootstrap RAM 环境')
-    return geometry
+    return {'total_bytes': sum(values), 'erase_bytes': 2097152, 'write_bytes': 8192,
+            'oob_bytes': 744, 'mtd_ecc_strength': 60, 'mtd_ecc_step_bytes': 1024}
 
 
 def active_snapshot(link):
-    result = link.command('sha256sum /lib/apk/db/installed /etc/config/network /etc/cm2012/hostapd.conf; pidof procd ubusd hostapd dnsmasq').replace('\r', '')
+    result = link.command('sha256sum /lib/apk/db/installed /etc/config/network; pidof procd ubusd hostapd dnsmasq').replace('\r', '')
     hashes = re.findall(r'(?m)^([0-9a-f]{64})\s+(\S+)$', result)
     pids = re.findall(r'(?m)^[0-9]+(?: [0-9]+)*$', result)
     return hashes, pids
@@ -162,8 +172,9 @@ def make_seed(root, stock, config):
             raise ValueError('缺少原厂模块：' + filename)
     seed['etc/inittab'] = Entry(stat.S_IFREG | 0o644,
         b'::sysinit:/etc/init.d/rcS S boot\n::shutdown:/etc/init.d/rcS K shutdown\nttyAMA0::askfirst:/usr/libexec/login.sh\n')
-    seed['etc/config/network'] = Entry(stat.S_IFREG | 0o644,
-        b"config interface 'loopback'\n\toption device 'lo'\n\toption proto 'static'\n\tlist ipaddr '127.0.0.1/8'\n")
+    from .runtime import configuration
+    for name, data in configuration(config).items():
+        seed[name] = Entry(stat.S_IFREG | 0o600, data)
     shadow = official['etc/shadow'].data.decode().splitlines()
     shadow = [f"root:{config['root_hash']}:0:0:99999:7:::" if s.startswith('root:') else s for s in shadow]
     seed['etc/shadow'] = Entry(stat.S_IFREG | 0o600, ('\n'.join(shadow) + '\n').encode())
@@ -172,15 +183,19 @@ def make_seed(root, stock, config):
 
 def make_overlay(root, config, binaries):
     overlay = {'sbin/ubusd': Entry(stat.S_IFREG | 0o755, binaries['ubusd'].read_bytes())}
-    for source, target, mode in (
-        ('cm2012-ap', 'etc/init.d/cm2012-ap', 0o755),
-        ('cm2012-ap-dhcp', 'usr/libexec/cm2012-ap-dhcp', 0o755),
-        ('dnsmasq-ap.conf', 'etc/cm2012/dnsmasq-ap.conf', 0o600),
-        ('hostapd.conf', 'etc/cm2012/hostapd.conf', 0o600)):
-        data = (root / 'configs/templates' / source).read_text(encoding='utf-8')
-        values = {'SSID': config['ssid'], 'PASSWORD': config['ap_password']}
-        data = re.sub(r'\{\{(SSID|PASSWORD)\}\}', lambda match: values[match.group(1)], data)
-        overlay[target] = Entry(stat.S_IFREG | mode, data.encode())
+    from .runtime import configuration, runtime_files
+    overlay.update(runtime_files(root))
+    for name, data in configuration(config).items():
+        overlay[name] = Entry(stat.S_IFREG | 0o600, data)
+    for name, target in (
+        ('fw3', 'sbin/fw3'), ('xtables-legacy-multi', 'usr/sbin/xtables-legacy-multi'),
+        ('libxtables.so.12', 'usr/lib/libxtables.so.12'),
+        ('cm2012-wpa-control', 'usr/libexec/cm2012-wpa-control'),
+        ('cm2012-net-probe', 'usr/libexec/cm2012-net-probe')):
+        if name in binaries:
+            overlay[target] = Entry(stat.S_IFREG | 0o755, binaries[name].read_bytes())
+    if 'serial-transfer' in binaries:
+        overlay['usr/libexec/cm2012-serial-transfer'] = Entry(stat.S_IFREG | 0o755, binaries['serial-transfer'].read_bytes())
     return read_tar_bytes(tar_bytes(overlay))
 
 
@@ -304,7 +319,8 @@ def build(root, config, stock, output):
         require_space(available, required)
         link.command('mkdir ' + job)
         helper = job + '/serial-transfer'
-        link.put_small(helper, binaries['serial-transfer'].read_bytes(), 0o700)
+        from .installer import upload_helper
+        upload_helper(link, helper, binaries['serial-transfer'].read_bytes())
         link.upload(helper, job + '/payload.tar.gz', packed)
         link.command(f'tar -xzf {job}/payload.tar.gz -C {job}')
         # 后台作业保留诊断，短轮询避免串口命令长时间阻塞。
@@ -327,6 +343,8 @@ def build(root, config, stock, output):
         length = int(re.search(r'(?m)^(\d+)$', detail).group(1))
         digest = re.search(r'(?m)^([0-9a-f]{64})\s', detail).group(1)
         archive = link.download(helper, job + '/result.tar.gz', length, digest)
-    entries = read_tar_bytes(archive)
+    from .runtime import prepare_root
+    entries = prepare_root(read_tar_bytes(archive))
+    entries.update(overlay)
     assemble_outputs(root, config, stock, binaries, entries, output)
     print('离线构建完成；本轮没有写入 NAND。诊断目录：' + job, flush=True)

@@ -1,0 +1,118 @@
+#!/bin/sh
+# 固定接口由项目统一管理，凭据只写入权限 0600 的临时文件。
+set -e
+. /lib/functions.sh
+umask 077
+state=/tmp/cm2012-wifi
+mkdir -p "$state"
+config_load cm2012
+config_get ssid ap ssid
+config_get key ap key
+config_get channel ap channel 153
+config_get country ap country CN
+config_get enabled ap enabled 1
+config_get upstream sta ssid
+config_get uplink settings uplink ethernet
+generation=$(sha256sum /etc/config/cm2012)
+generation=${generation%% *}
+render_ap() {
+ local mode=a
+ [ "$channel" -gt 14 ] || mode=g
+ {
+  printf 'interface=ap0\ndriver=nl80211\nctrl_interface=/var/run/hostapd\nhw_mode=%s\nchannel=%s\ncountry_code=%s\nieee80211d=1\nieee80211n=1\nwmm_enabled=1\n' "$mode" "$channel" "$country"
+  printf 'ssid=%s\nauth_algs=1\nwpa=2\nwpa_passphrase=%s\nwpa_key_mgmt=WPA-PSK\nrsn_pairwise=CCMP\n' "$ssid" "$key"
+ } >"$state/hostapd.conf"
+}
+render_sta() {
+ ucode /usr/libexec/cm2012-supplicant.uc
+}
+sta_status() { /usr/libexec/cm2012-wpa-control STATUS 2>/dev/null || true; }
+sta_channel() {
+ local freq
+ freq=$(sta_status | sed -n 's/^freq=//p')
+ case "$freq" in ''|*[!0-9]*) return 1;; esac
+ if [ "$freq" = 2484 ]; then echo 14
+ elif [ "$freq" -ge 2412 ] && [ "$freq" -le 2472 ]; then echo $(((freq-2407)/5))
+ elif [ "$freq" -ge 5000 ] && [ "$freq" -le 5895 ]; then echo $(((freq-5000)/5))
+ else return 1; fi
+}
+host_pid=''; sta_pid=''
+cleanup() {
+ rm -f "$state/ready" "$state/pending/ready"
+ [ -z "$host_pid" ] || kill "$host_pid" 2>/dev/null || true
+ [ -z "$sta_pid" ] || kill "$sta_pid" 2>/dev/null || true
+ wait 2>/dev/null || true
+}
+start_ap() {
+ render_ap
+ /usr/sbin/hostapd "$state/hostapd.conf" >"$state/hostapd.log" 2>&1 & host_pid=$!
+ local attempt=0
+ while ! ubus call hostapd.ap0 get_status 2>/dev/null | grep -q 'ENABLED'; do
+  kill -0 "$host_pid" 2>/dev/null || return 1
+  attempt=$((attempt+1)); [ "$attempt" -le 60 ] || return 1
+  sleep 1
+ done
+ # 原厂驱动必须在 hostapd ENABLED 后再配置地址。
+ ifup lan
+ /etc/init.d/dnsmasq restart
+}
+case "${1:-}" in
+run)
+ trap 'exit 0' TERM INT
+ trap cleanup EXIT
+ rm -f "$state/ready"
+ ifdown wan; ifdown wwan
+ if [ "$uplink" = ethernet ]; then ifup wan; fi
+ render_sta
+ /usr/sbin/wpa_supplicant -Dnl80211 -iwlan0 -c"$state/supplicant.conf" >"$state/supplicant.log" 2>&1 & sta_pid=$!
+ if [ "$uplink" = wifi ]; then
+  attempt=0
+  while ! sta_status | grep -q '^wpa_state=COMPLETED$'; do
+   attempt=$((attempt+1)); [ "$attempt" -le 30 ] || break
+   sleep 1
+  done
+  channel=$(sta_channel) || channel=153
+ fi
+ if [ "$enabled" = 1 ]; then start_ap; else ifdown lan; fi
+ if [ "$uplink" = ethernet ]; then printf '%s' "$generation" >"$state/ready"; fi
+ while kill -0 "$sta_pid" 2>/dev/null; do
+  if [ -n "$host_pid" ]; then kill -0 "$host_pid" 2>/dev/null || exit 1; fi
+  if [ "$uplink" = wifi ] && sta_status | grep -q '^wpa_state=COMPLETED$'; then
+   new_channel=$(sta_channel) || new_channel=$channel
+   if [ "$new_channel" != "$channel" ] && [ "$enabled" = 1 ]; then
+    rm -f "$state/ready" "$state/pending/ready"
+    ifdown lan; kill "$host_pid"; wait "$host_pid" || true
+    channel=$new_channel; start_ap
+   fi
+   if ! ubus call network.interface.wwan status | grep -q '"up": true'; then ifup wwan; fi
+   if ubus call network.interface.wwan status | grep -q '"up": true'; then printf '%s' "$generation" >"$state/ready"; fi
+  elif [ "$uplink" = wifi ]; then
+   if ubus call network.interface.wwan status | grep -q '"up": true'; then ifdown wwan; fi
+   rm -f "$state/ready"
+  fi
+  sleep 5
+ done
+ exit 1
+ ;;
+transaction)
+ [ -f "$state/pending/backup" ] || exit 1
+ sleep 2
+ /etc/init.d/cm2012-ap restart || true
+ attempt=0
+ while [ ! -f "$state/pending/confirmed" ] && [ ! -f "$state/pending/rollback" ]; do
+  if [ "$(cat "$state/ready" 2>/dev/null || true)" = "$generation" ]; then
+   printf '%s' "$generation" >"$state/pending/ready"
+  else
+   rm -f "$state/pending/ready"
+  fi
+  attempt=$((attempt+1)); [ "$attempt" -le 90 ] || break
+  sleep 1
+ done
+ if [ -f "$state/pending/rollback" ] || [ ! -f "$state/pending/confirmed" ]; then
+  cp "$state/pending/backup" /etc/config/cm2012
+  /etc/init.d/cm2012-ap restart || true
+ fi
+ rm -rf "$state/pending"
+ ;;
+*) exit 2;;
+esac

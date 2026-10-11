@@ -1,0 +1,7 @@
+{
+ "luci-app-cm2012": {
+  "description": "CM201-2 无线与上联管理",
+  "read": { "ubus": { "cm2012": ["status", "scan"] } },
+  "write": { "ubus": { "cm2012": ["apply", "confirm", "rollback"] } }
+ }
+}
