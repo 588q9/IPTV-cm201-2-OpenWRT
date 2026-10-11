@@ -32,7 +32,7 @@ class ResourceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 module.verify_resource(root, item)
             path.write_bytes(b'good')
-            self.assertEqual(module.verify_resource(root, item), path)
+            self.assertEqual(module.verify_resource(root, item), path.resolve())
 
     def test_reject_lock_path_outside_workspace(self):
         module = self.module()
