@@ -4,6 +4,29 @@ import stat
 from .archives import Entry
 
 
+PROCD_LAUNCHER = b'''#!/bin/sh
+# INITRAMFS is needed by preinit, but an internal UBIFS root is persistent.
+internal_root_ready() {
+    [ "${FAILSAFE:-}" != true ] && [ ! -e /tmp/.failsafe ] || return 1
+    [ "$(cat /etc/cm2012-internal-root 2>/dev/null)" = CM2012_INTERNAL_OPENWRT25 ] || return 1
+    # The retained maintenance root appears before the active root mount.
+    awk '$2 == "/" { source=$1; kind=$3; options=$4 }
+        END { exit !(source == "ubi0:rootfs" && kind == "ubifs" &&
+                     options ~ /(^|,)rw(,|$)/) }' /proc/self/mounts || return 1
+    local number
+    number=$(cat /sys/class/ubi/ubi0/mtd_num 2>/dev/null) || return 1
+    case "$number" in ''|*[!0-9]*) return 1 ;; esac
+    [ "$(cat /sys/class/mtd/mtd$number/name 2>/dev/null)" = userdata ]
+}
+
+# Preserve hotplug arguments and the genuine RAM/failsafe boot behaviour.
+if [ "$#" -eq 0 ] && internal_root_ready; then
+    unset INITRAMFS
+fi
+exec /usr/libexec/cm2012/procd "$@"
+'''
+
+
 def quote(value):
     if not isinstance(value, str) or any(c in value for c in '\r\n\0'):
         raise ValueError('UCI 值包含换行或空字节')
@@ -145,6 +168,17 @@ def prepare_root(entries):
     for name in ('etc/rc.d/S19wpad', 'etc/rc.d/K21wpad', 'sbin/fw3',
                  'sbin/fw4', 'usr/sbin/nft'):
         result.pop(name, None)
+    if 'sbin/procd' in result:
+        original = result['sbin/procd']
+        if (not stat.S_ISREG(original.mode) or not original.mode & 0o111 or
+                not original.data.startswith(b'\x7fELF') or
+                'usr/libexec/cm2012/procd' in result or
+                ('usr/libexec/cm2012' in result and
+                 not stat.S_ISDIR(result['usr/libexec/cm2012'].mode))):
+            raise ValueError('procd 不是预期的原始可执行文件，拒绝替换启动入口')
+        result.setdefault('usr/libexec/cm2012', Entry(stat.S_IFDIR | 0o755))
+        result['usr/libexec/cm2012/procd'] = original
+        result['sbin/procd'] = Entry(stat.S_IFREG | 0o755, PROCD_LAUNCHER)
     name = 'etc/init.d/dnsmasq'
     if name in result:
         entry = result[name]

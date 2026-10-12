@@ -119,6 +119,11 @@ def validate_root(entries):
         raise ValueError('根系统完成标识缺失')
     for name in programs:
         validate_program(entries, name)
+    if 'sbin/procd' in entries:
+        from .runtime import PROCD_LAUNCHER
+        validate_program(entries, 'sbin/procd')
+        if resolve_file(entries, 'sbin/procd').data == PROCD_LAUNCHER:
+            validate_program(entries, 'usr/libexec/cm2012/procd')
     validate_accounts(entries.get('etc/passwd', Entry(0)).data.decode())
     validate_support(entries, 'lib/modules/3.18.24_hi3798mv2x/', 'lib/firmware/')
 
