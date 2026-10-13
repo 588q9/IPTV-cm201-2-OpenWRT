@@ -2,11 +2,12 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../../configs/templates/cm2012-wireless.js'), 'utf8');
-const calls = [], buttons = [], stored = new Map();
+const calls = [], buttons = [], stored = new Map(), controls = [];
 const wanted = '12345678-1234-1234-1234-123456789abc';
 const rpc = { declare: d => (...args) => { calls.push([d.method, args]); return Promise.resolve({confirmed:true}); } };
 function E(tag, attrs = {}, children) {
- const element = {value: attrs.value || '', textContent:'', replaceChildren(){}, appendChild(){}};
+ const element = {value: attrs.value || '', textContent:'', replaceChildren(){}, appendChild(){}, remove(){}, addEventListener(n,f){this['on'+n]=f}};
+ if (tag === 'input' || tag === 'select' || tag === 'textarea') controls.push({attrs,children,element});
  if (tag === 'button') buttons.push({attrs,children});
  return element;
 }
@@ -20,4 +21,13 @@ page.render({config:{ssid:'public',enabled:'1',channel:'1',uplink:'wifi',upstrea
  pending:true,pending_token:wanted});
 buttons.find(b=>b.children==='确认可访问').attrs.click();
 assert.equal(calls.find(c=>c[0]==='confirm')[1][0],wanted);
+const role=controls.find(c=>Array.isArray(c.children)&&c.children.length===2&&c.children.some(o=>o.value==='lan'));
+assert.ok(role, 'Ethernet LAN choice missing');
+role.element.value='lan'; role.element.onchange();
+buttons.find(b=>b.children==='新增路由').attrs.click();
+buttons.find(b=>b.children==='应用设置').attrs.click();
+const payload=calls.find(c=>c[0]==='apply')[1];
+assert.equal(payload[4],'wifi');
+assert.equal(payload[7],'lan');
+assert.equal(JSON.parse(payload[9]).length,1);
 console.log('CROSS_ORIGIN_CONFIRMATION_OK');

@@ -183,6 +183,13 @@ def compile_all(root):
                              ('cm2012-wpa-control', root / 'tools/cm2012/wpa_control.c'),
                              ('cm2012-net-probe', root / 'tools/cm2012/net_probe.c')):
         run(common + ['-static', '-s', str(source), '-o', str(output / filename)])
+    netlink_objects = []
+    for name in ('netlink_compat','netlink_preload'):
+        obj = objects / (name + '.o')
+        run(common + ['-fPIC', '-c', str(root / 'tools/cm2012' / (name + '.c')), '-o', str(obj)])
+        netlink_objects.append(str(obj))
+    run([str(zig),'ld.lld','-m','armelf_linux_eabi','-shared'] + netlink_objects +
+        ['-o',str(output / 'cm2012-netlink-compat.so')])
     ubus_flags = ['-fPIE', '-pie', '-std=gnu99', '-D_GNU_SOURCE', '-DUBUS_MAX_MSGLEN=1048576',
                   '-DUBUS_UNIX_SOCKET="/var/run/ubus/ubus.sock"', '-I' + str(headers.parent), '-I' + str(ubus)]
     names = ('ubusd_main', 'ubusd', 'ubusd_proto', 'ubusd_id', 'ubusd_obj', 'ubusd_event', 'ubusd_acl', 'ubusd_monitor')
@@ -207,12 +214,17 @@ def compile_all(root):
     for name, folder in programs:
         run(common + mtdflags + [str(mtd / folder / (name + '.c'))] + mtdobjs + ['-o', str(output / name)])
     binaries = {name: output / name for name in ['ubusd', 'cm2012-switch-root', 'serial-transfer',
-                 'cm2012-wpa-control', 'cm2012-net-probe'] +
+                 'cm2012-wpa-control', 'cm2012-net-probe', 'cm2012-netlink-compat.so'] +
                  [n for n, _ in programs]}
     from .legacy_firewall import compile_legacy
     binaries.update(compile_legacy(root, resources, official, ubus, headers, linklibs,
                                    common, run, output))
     for name, path in binaries.items():
+        if name == 'cm2012-netlink-compat.so':
+            info = elf_info(path.read_bytes())
+            if info['interpreter'] or info['needed'] or not info['has_dynamic']:
+                raise ValueError('netlink 兼容库的动态依赖不匹配')
+            continue
         if name == 'libxtables.so.12':
             info = elf_info(path.read_bytes())
             if info['interpreter'] or info['needed'] != ('libc.so',):

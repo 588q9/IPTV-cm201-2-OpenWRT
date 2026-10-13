@@ -11,11 +11,16 @@ let cases = [
  { key: 'short' }, { key: '1234567\r89' }, { channel: '14' },
  { uplink: 'automatic' }, { enabled: 'yes' },
  { upstream_key: 'short' }, { upstream_key: '1234567\n89' },
- { uplink: 'wifi', upstream_ssid: '' }
+ { uplink: 'wifi', upstream_ssid: '' },
+ { eth_role: 'invalid' }, { eth_role: 'lan', uplink: 'ethernet' },
+ { routes_json: '{}' }, { routes_json: 'invalid' },
+ { allow_upstream: '1', upstream_sources_json: '[]' },
+ { upstream_sources_json: '["0.0.0.0/0"]' }
 ];
 for (let edit in cases) {
  let args = { ssid: 'CM2012-validation', key: '', channel: '153', enabled: '1',
-              uplink: 'ethernet', upstream_ssid: '', upstream_key: '' };
+              uplink: 'ethernet', upstream_ssid: '', upstream_key: '',
+              eth_role:'wan',allow_upstream:'0',routes_json:'[]',upstream_sources_json:'[]' };
  for (let name in edit) args[name] = edit[name];
  let result = plugin.apply.call({ args });
  if (!result.error) die('无效输入没有被拒绝');
@@ -36,6 +41,10 @@ if (!mkdir(path, 0700)) die('已有事务，不能运行隔离令牌测试');
 let token = '12345678-1234-1234-1234-123456789abc';
 let f = open(path + '/token', 'w', 0600); f.write(token); f.close();
 let observed = plugin.status.call().pending_token;
+let busy = plugin.apply.call({args:{ssid:'CM2012-validation',key:'',channel:'153',enabled:'1',
+ uplink:'ethernet',upstream_ssid:'',upstream_key:'',eth_role:'wan',allow_upstream:'0',
+ routes_json:'[]',upstream_sources_json:'[]'}});
 unlink(path + '/token'); rmdir(path);
 if (observed != token) die('新管理地址不能获取当前确认事务');
+if (!busy.error || index(busy.error,'已有设置')<0) die('并发事务没有被拒绝');
 printf('CM_RPC_VALIDATION_OK (%d invalid apply cases)\n', length(cases));

@@ -126,16 +126,29 @@ class BuildTests(unittest.TestCase):
                     'usr/libexec/cm2012-wifi', 'usr/libexec/cm2012-wpa-control',
                     'usr/libexec/cm2012-net-probe', 'usr/libexec/cm2012-serial-transfer',
                     'etc/init.d/firewall', 'etc/init.d/sysntpd',
+                    'usr/libexec/cm2012-network', 'etc/init.d/cm2012-network-guard',
                     'lib/libc.so', 'lib/libgcc_s.so.1')}
         entries.update({'etc/config/cm2012': Entry(stat.S_IFREG | 0o600, b'config'),
             'usr/share/rpcd/ucode/cm2012': Entry(stat.S_IFREG | 0o644, b'rpc'),
             'usr/libexec/cm2012-wireless-lib.uc': Entry(stat.S_IFREG | 0o644, b'lib'),
             'usr/libexec/cm2012-supplicant.uc': Entry(stat.S_IFREG | 0o644, b'render'),
+            'usr/libexec/cm2012-network-lib.uc': Entry(stat.S_IFREG | 0o644, b'network'),
+            'usr/libexec/cm2012-network-restore.uc': Entry(stat.S_IFREG | 0o644, b'restore'),
+            'etc/rc.d/S18cm2012-network-guard': Entry(stat.S_IFLNK | 0o777, b'../init.d/cm2012-network-guard'),
             'usr/share/rpcd/acl.d/luci-app-cm2012.json': Entry(stat.S_IFREG | 0o644, b'{}'),
             'usr/share/luci/menu.d/luci-app-cm2012.json': Entry(stat.S_IFREG | 0o644, b'{}'),
             'www/luci-static/resources/view/cm2012/wireless.js': Entry(stat.S_IFREG | 0o644, b'view'),
             'etc/cm2012-internal-root': Entry(stat.S_IFREG | 0o644, b'CM2012_INTERNAL_OPENWRT25\n'),
             'etc/passwd': Entry(stat.S_IFREG | 0o644, b'network:*:101:101:n:/var:/bin/false\nubus:*:81:81:u:/var:/bin/false\n')})
+        from cm2012.runtime import NETIFD_LAUNCHER
+        from test_public_compiler import dynamic_arm_elf
+        compat = bytearray(dynamic_arm_elf(needed=()))
+        struct.pack_into('<I', compat, 52 + 32, 0)  # Shared library has no PT_INTERP.
+        entries.update({'sbin/netifd': Entry(stat.S_IFREG | 0o755, NETIFD_LAUNCHER),
+            'bin/sh': Entry(stat.S_IFLNK | 0o777, b'busybox'),
+            'usr/bin/setsid': Entry(stat.S_IFLNK | 0o777, b'../../bin/busybox'),
+            'usr/libexec/cm2012/netifd': Entry(stat.S_IFREG | 0o755, bytes(program)),
+            'usr/lib/cm2012-netlink-compat.so': Entry(stat.S_IFREG | 0o644, bytes(compat))})
         from fixtures.arm_module import module_bytes
         from cm2012.hardware import MODULES, FIRMWARE
         entries.update({'lib/modules/3.18.24_hi3798mv2x/' + name: Entry(stat.S_IFREG | 0o644, module_bytes()) for name in MODULES})
@@ -144,6 +157,15 @@ class BuildTests(unittest.TestCase):
         module.validate_root(entries)
         incomplete = dict(entries)
         incomplete.pop('sbin/fw3')
+        with self.assertRaises(ValueError):
+            module.validate_root(incomplete)
+        for required in ('sbin/netifd','usr/libexec/cm2012/netifd','usr/lib/cm2012-netlink-compat.so','usr/bin/setsid'):
+            incomplete = dict(entries)
+            incomplete.pop(required)
+            with self.subTest(required=required), self.assertRaises(ValueError):
+                module.validate_root(incomplete)
+        incomplete = dict(entries)
+        incomplete['sbin/netifd'] = entries['usr/libexec/cm2012/netifd']
         with self.assertRaises(ValueError):
             module.validate_root(incomplete)
         with tempfile.TemporaryDirectory() as folder:

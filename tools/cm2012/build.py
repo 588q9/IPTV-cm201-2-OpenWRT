@@ -106,9 +106,12 @@ def validate_root(entries):
                 'usr/sbin/dnsmasq', 'etc/init.d/cm2012-ap', 'usr/sbin/wpa_supplicant',
                 'usr/sbin/xtables-legacy-multi', 'sbin/fw3', 'usr/libexec/cm2012-wifi',
                 'usr/libexec/cm2012-wpa-control', 'usr/libexec/cm2012-net-probe',
-                'usr/libexec/cm2012-serial-transfer', 'etc/init.d/firewall', 'etc/init.d/sysntpd')
+                'usr/libexec/cm2012-serial-transfer', 'etc/init.d/firewall', 'etc/init.d/sysntpd',
+                'usr/libexec/cm2012-network', 'etc/init.d/cm2012-network-guard')
     needed = programs + ('etc/config/cm2012', 'usr/share/rpcd/ucode/cm2012',
               'usr/libexec/cm2012-wireless-lib.uc', 'usr/libexec/cm2012-supplicant.uc',
+              'usr/libexec/cm2012-network-lib.uc', 'usr/libexec/cm2012-network-restore.uc',
+              'etc/rc.d/S18cm2012-network-guard',
               'usr/share/rpcd/acl.d/luci-app-cm2012.json',
               'usr/share/luci/menu.d/luci-app-cm2012.json',
               'www/luci-static/resources/view/cm2012/wireless.js',
@@ -124,6 +127,15 @@ def validate_root(entries):
         validate_program(entries, 'sbin/procd')
         if resolve_file(entries, 'sbin/procd').data == PROCD_LAUNCHER:
             validate_program(entries, 'usr/libexec/cm2012/procd')
+    from .runtime import NETIFD_LAUNCHER
+    validate_program(entries,'usr/bin/setsid')
+    validate_program(entries,'sbin/netifd')
+    if resolve_file(entries,'sbin/netifd').data != NETIFD_LAUNCHER:
+        raise ValueError('netifd 缺少原厂内核桥接兼容入口')
+    validate_program(entries,'usr/libexec/cm2012/netifd')
+    info = elf_info(resolve_file(entries,'usr/lib/cm2012-netlink-compat.so').data)
+    if info['interpreter'] or info['needed'] or not info['has_dynamic']:
+        raise ValueError('netlink 兼容库不完整')
     validate_accounts(entries.get('etc/passwd', Entry(0)).data.decode())
     validate_support(entries, 'lib/modules/3.18.24_hi3798mv2x/', 'lib/firmware/')
 
@@ -195,6 +207,7 @@ def make_overlay(root, config, binaries):
     for name, target in (
         ('fw3', 'sbin/fw3'), ('xtables-legacy-multi', 'usr/sbin/xtables-legacy-multi'),
         ('libxtables.so.12', 'usr/lib/libxtables.so.12'),
+        ('cm2012-netlink-compat.so', 'usr/lib/cm2012-netlink-compat.so'),
         ('cm2012-wpa-control', 'usr/libexec/cm2012-wpa-control'),
         ('cm2012-net-probe', 'usr/libexec/cm2012-net-probe')):
         if name in binaries:

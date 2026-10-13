@@ -27,6 +27,9 @@
 /tests/device/*
 !/tests/device/cm2012-rpc.uc
 !/tests/device/cm2012-wireless.uc
+!/tests/device/cm2012-network.uc
+!/tests/device/cm2012-rollback.uc
+!/tests/device/cm2012-netlink.c
 !/configs/
 /configs/*
 !/configs/templates/

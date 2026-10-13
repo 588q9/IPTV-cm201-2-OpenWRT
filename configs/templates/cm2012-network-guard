@@ -1,0 +1,10 @@
+#!/bin/sh /etc/rc.common
+# Restore unconfirmed configuration before netifd (START=20).
+START=18
+start() {
+ # Fail closed: do not continue boot with partly restored configurations.
+ until /usr/libexec/cm2012-network recover; do
+  logger -t cm2012-network 'Configuration recovery failed; networking startup held for repair'
+  sleep 5
+ done
+}

@@ -21,6 +21,8 @@ class RuntimeTests(unittest.TestCase):
 
     def test_defaults_share_standard_dhcp_and_defer_ap_address(self):
         files = self.module().configuration({'ssid': 'public', 'ap_password': 'secret123'})
+        self.assertIn("option eth_role 'wan'", files['etc/config/cm2012'].decode())
+        self.assertIn("option allow_upstream '0'", files['etc/config/cm2012'].decode())
         network = files['etc/config/network'].decode()
         self.assertIn("config interface 'lan'", network)
         self.assertIn("option device 'ap0'", network)
@@ -90,7 +92,7 @@ class RuntimeTests(unittest.TestCase):
         confirm = source.split('confirm: {', 1)[1].split('rollback: {', 1)[0]
         self.assertIn("readfile('/tmp/cm2012-wifi/ready')", confirm)
         self.assertIn('valid_text(stakey, 8, 63)', source.split("a.uplink == 'wifi'", 1)[0])
-        worker = (ROOT / 'configs/templates/cm2012-wifi').read_text(encoding='utf-8')
+        worker = (ROOT / 'configs/templates/cm2012-network').read_text(encoding='utf-8')
         self.assertIn('rm -f "$state/pending/ready"', worker)
 
     def test_worker_exit_invalidates_readiness(self):

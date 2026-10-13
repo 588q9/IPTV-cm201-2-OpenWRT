@@ -13,6 +13,7 @@ config_get country ap country CN
 config_get enabled ap enabled 1
 config_get upstream sta ssid
 config_get uplink settings uplink ethernet
+config_get eth_role settings eth_role wan
 generation=$(sha256sum /etc/config/cm2012)
 generation=${generation%% *}
 render_ap() {
@@ -20,6 +21,7 @@ render_ap() {
  [ "$channel" -gt 14 ] || mode=g
  {
   printf 'interface=ap0\ndriver=nl80211\nctrl_interface=/var/run/hostapd\nhw_mode=%s\nchannel=%s\ncountry_code=%s\nieee80211d=1\nieee80211n=1\nwmm_enabled=1\n' "$mode" "$channel" "$country"
+  [ "$eth_role" != lan ] || printf 'bridge=br-lan\n'
   printf 'ssid=%s\nauth_algs=1\nwpa=2\nwpa_passphrase=%s\nwpa_key_mgmt=WPA-PSK\nrsn_pairwise=CCMP\n' "$ssid" "$key"
  } >"$state/hostapd.conf"
 }
@@ -41,6 +43,8 @@ cleanup() {
  rm -f "$state/ready" "$state/pending/ready"
  [ -z "$host_pid" ] || kill "$host_pid" 2>/dev/null || true
  [ -z "$sta_pid" ] || kill "$sta_pid" 2>/dev/null || true
+ ubus -t 3 call network.interface.lan remove_device '{"name":"ap0","link-ext":true}' >/dev/null 2>&1 || true
+ ubus -t 3 call network.interface.wwan remove_device '{"name":"wlan0","link-ext":true}' >/dev/null 2>&1 || true
  wait 2>/dev/null || true
 }
 start_ap() {
@@ -53,6 +57,7 @@ start_ap() {
   sleep 1
  done
  # 原厂驱动必须在 hostapd ENABLED 后再配置地址。
+ ubus -t 3 call network.interface.lan add_device '{"name":"ap0","link-ext":true}' >/dev/null
  ifup lan
  /etc/init.d/dnsmasq restart
 }
@@ -62,7 +67,8 @@ run)
  trap cleanup EXIT
  rm -f "$state/ready"
  ifdown wan; ifdown wwan
- if [ "$uplink" = ethernet ]; then ifup wan; fi
+ if [ "$uplink" = ethernet ] && [ "$eth_role" = wan ]; then ifup wan; fi
+ if [ "$eth_role" = lan ]; then ifup lan; /etc/init.d/dnsmasq restart; fi
  render_sta
  /usr/sbin/wpa_supplicant -Dnl80211 -iwlan0 -c"$state/supplicant.conf" >"$state/supplicant.log" 2>&1 & sta_pid=$!
  if [ "$uplink" = wifi ]; then
@@ -72,8 +78,11 @@ run)
    sleep 1
   done
   channel=$(sta_channel) || channel=153
+  # netifd treats devices with phy80211 as externally managed after reload.
+  ubus -t 3 call network.interface.wwan add_device '{"name":"wlan0","link-ext":true}' >/dev/null
  fi
- if [ "$enabled" = 1 ]; then start_ap; else ifdown lan; fi
+ if [ "$enabled" = 1 ]; then start_ap
+ elif [ "$eth_role" = wan ]; then ifdown lan; fi
  if [ "$uplink" = ethernet ]; then printf '%s' "$generation" >"$state/ready"; fi
  while kill -0 "$sta_pid" 2>/dev/null; do
   if [ -n "$host_pid" ]; then kill -0 "$host_pid" 2>/dev/null || exit 1; fi
@@ -81,10 +90,14 @@ run)
    new_channel=$(sta_channel) || new_channel=$channel
    if [ "$new_channel" != "$channel" ] && [ "$enabled" = 1 ]; then
     rm -f "$state/ready" "$state/pending/ready"
-    ifdown lan; kill "$host_pid"; wait "$host_pid" || true
+    [ "$eth_role" = lan ] || ifdown lan
+    kill "$host_pid"; wait "$host_pid" || true
     channel=$new_channel; start_ap
    fi
-   if ! ubus call network.interface.wwan status | grep -q '"up": true'; then ifup wwan; fi
+   if ! ubus call network.interface.wwan status | grep -q '"up": true'; then
+    ubus -t 3 call network.interface.wwan add_device '{"name":"wlan0","link-ext":true}' >/dev/null
+    ifup wwan
+   fi
    if ubus call network.interface.wwan status | grep -q '"up": true'; then printf '%s' "$generation" >"$state/ready"; fi
   elif [ "$uplink" = wifi ]; then
    if ubus call network.interface.wwan status | grep -q '"up": true'; then ifdown wwan; fi
@@ -95,24 +108,7 @@ run)
  exit 1
  ;;
 transaction)
- [ -f "$state/pending/backup" ] || exit 1
- sleep 2
- /etc/init.d/cm2012-ap restart || true
- attempt=0
- while [ ! -f "$state/pending/confirmed" ] && [ ! -f "$state/pending/rollback" ]; do
-  if [ "$(cat "$state/ready" 2>/dev/null || true)" = "$generation" ]; then
-   printf '%s' "$generation" >"$state/pending/ready"
-  else
-   rm -f "$state/pending/ready"
-  fi
-  attempt=$((attempt+1)); [ "$attempt" -le 90 ] || break
-  sleep 1
- done
- if [ -f "$state/pending/rollback" ] || [ ! -f "$state/pending/confirmed" ]; then
-  cp "$state/pending/backup" /etc/config/cm2012
-  /etc/init.d/cm2012-ap restart || true
- fi
- rm -rf "$state/pending"
+ exec /usr/libexec/cm2012-network transaction
  ;;
 *) exit 2;;
 esac

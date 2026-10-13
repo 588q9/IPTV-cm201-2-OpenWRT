@@ -1,6 +1,6 @@
 {
  "admin/network/cm2012": {
-  "title": "CM201-2 无线与上联",
+  "title": "CM201-2 无线、网口与路由",
   "order": 15,
   "action": { "type": "view", "path": "cm2012/wireless" },
   "depends": { "acl": ["luci-app-cm2012"] }

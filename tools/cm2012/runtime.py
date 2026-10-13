@@ -26,6 +26,12 @@ fi
 exec /usr/libexec/cm2012/procd "$@"
 '''
 
+NETIFD_LAUNCHER = b'''#!/bin/sh
+# The fixed vendor 3.18 bridge netlink policy rejects modern attributes.
+export LD_PRELOAD=/usr/lib/cm2012-netlink-compat.so${LD_PRELOAD:+:$LD_PRELOAD}
+exec /usr/libexec/cm2012/netifd "$@"
+'''
+
 
 def quote(value):
     if not isinstance(value, str) or any(c in value for c in '\r\n\0'):
@@ -155,6 +161,8 @@ config sta 'sta'
 
 config settings 'settings'
  option uplink 'ethernet'
+ option eth_role 'wan'
+ option allow_upstream '0'
 """
     return {name: data.encode() for name, data in (
         ('etc/config/network', network), ('etc/config/dhcp', dhcp),
@@ -179,6 +187,14 @@ def prepare_root(entries):
         result.setdefault('usr/libexec/cm2012', Entry(stat.S_IFDIR | 0o755))
         result['usr/libexec/cm2012/procd'] = original
         result['sbin/procd'] = Entry(stat.S_IFREG | 0o755, PROCD_LAUNCHER)
+    if 'sbin/netifd' in result:
+        original = result['sbin/netifd']
+        if (not stat.S_ISREG(original.mode) or not original.mode & 0o111 or
+                not original.data.startswith(b'\x7fELF') or 'usr/libexec/cm2012/netifd' in result):
+            raise ValueError('netifd 不是预期原始执行文件，拒绝替换')
+        result.setdefault('usr/libexec/cm2012', Entry(stat.S_IFDIR | 0o755))
+        result['usr/libexec/cm2012/netifd'] = original
+        result['sbin/netifd'] = Entry(stat.S_IFREG | 0o755, NETIFD_LAUNCHER)
     name = 'etc/init.d/dnsmasq'
     if name in result:
         entry = result[name]
@@ -199,12 +215,16 @@ def runtime_files(root):
     for source, target in (
         ('cm2012-ap', 'etc/init.d/cm2012-ap'),
         ('cm2012-wifi', 'usr/libexec/cm2012-wifi'),
+        ('cm2012-network', 'usr/libexec/cm2012-network'),
+        ('cm2012-network-guard', 'etc/init.d/cm2012-network-guard'),
         ('firewall', 'etc/init.d/firewall'),
         ('sysntpd', 'etc/init.d/sysntpd')):
         result[target] = Entry(stat.S_IFREG | 0o755,
                               (root / 'configs/templates' / source).read_bytes().replace(b'\r\n', b'\n'))
     result['etc/hotplug.d/iface/20-firewall'] = Entry(stat.S_IFREG | 0o755,
         b'#!/bin/sh\ncase "$ACTION" in ifup|ifupdate|ifdown) /sbin/fw3 reload ;; esac\n')
+    result['etc/rc.d/S18cm2012-network-guard'] = Entry(stat.S_IFLNK | 0o777,
+        b'../init.d/cm2012-network-guard')
     result['usr/share/fw3/helpers.conf'] = Entry(stat.S_IFREG | 0o644,
         b'# No optional conntrack helper modules are enabled on the fixed vendor kernel.\n')
     for name in ('iptables', 'iptables-save', 'iptables-restore', 'ip6tables',
@@ -212,6 +232,8 @@ def runtime_files(root):
         result['usr/sbin/' + name] = Entry(stat.S_IFLNK | 0o777, b'xtables-legacy-multi')
     for source, target in (
         ('cm2012-wireless-lib.uc', 'usr/libexec/cm2012-wireless-lib.uc'),
+        ('cm2012-network-lib.uc', 'usr/libexec/cm2012-network-lib.uc'),
+        ('cm2012-network-restore.uc', 'usr/libexec/cm2012-network-restore.uc'),
         ('cm2012-supplicant.uc', 'usr/libexec/cm2012-supplicant.uc'),
         ('cm2012-rpc.uc', 'usr/share/rpcd/ucode/cm2012'),
         ('cm2012-acl.json', 'usr/share/rpcd/acl.d/luci-app-cm2012.json'),

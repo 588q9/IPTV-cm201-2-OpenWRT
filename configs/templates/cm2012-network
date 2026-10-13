@@ -1,0 +1,169 @@
+#!/bin/sh
+# Persistent, multi-config rollback. No secret values are printed.
+set -e
+umask 077
+config_dir=/etc/config
+journal=/etc/cm2012-transaction
+state=/tmp/cm2012-wifi
+prepare() {
+ mkdir "$journal" || return 1
+ # Incomplete backup is never used to restore live configuration.
+ for name in cm2012 network dhcp firewall; do
+  if ! cp -p "$config_dir/$name" "$journal/$name"; then rm -rf "$journal"; return 1; fi
+ done
+ printf '%s' "$1" > "$journal/token"
+ sync
+ touch "$journal/prepared"
+ sync
+}
+restore() {
+ [ -f "$journal/prepared" ] || return 1
+ for name in cm2012 network dhcp firewall; do [ -f "$journal/$name" ] || return 1; done
+ if [ -f "$journal/applied/complete" ]; then
+  mkdir -p "$journal/save-before" "$journal/save-applied" "$journal/save-live" || return 1
+  ucode /usr/libexec/cm2012-network-restore.uc "$journal" "$config_dir" || return 1
+  sync || return 1
+  return 0
+ fi
+ for name in cm2012 network dhcp firewall; do
+  cp -p "$journal/$name" "$config_dir/.$name.cm2012-restore" || return 1
+  mv "$config_dir/.$name.cm2012-restore" "$config_dir/$name" || return 1
+ done
+ sync
+}
+finish() { rm -rf "$journal" "$state/pending"; sync; }
+snapshot() {
+ mkdir "$journal/applied"
+ for name in cm2012 network dhcp firewall; do cp -p "$config_dir/$name" "$journal/applied/$name"; done
+ sync; touch "$journal/applied/complete"; sync
+}
+decide() {
+ mkdir "$journal/decision.lock" 2>/dev/null || return 2
+ local result=1
+ if [ "$1" = confirm ]; then
+  if [ ! -f "$journal/rolling-back" ] && [ -f "$journal/prepared" ] &&
+     [ "$(cat "$journal/token")" = "$2" ] && [ -f "$state/pending/ready" ]; then
+   touch "$journal/confirmed"; sync; result=0
+  fi
+ elif [ ! -f "$journal/confirmed" ]; then
+  touch "$journal/rolling-back"; rm -f "$state/pending/ready"; sync; result=0
+ fi
+ rmdir "$journal/decision.lock"
+ return "$result"
+}
+wait_decision() {
+ local tries=0 result
+ while :; do
+  if decide "$@"; then return 0; else result=$?; fi
+  [ "$result" = 2 ] || return "$result"
+  tries=$((tries+1)); [ "$tries" -le 10 ] || return 2
+  sleep 1
+ done
+}
+recover() {
+ if [ -d "$journal" ]; then
+  if [ -f "$journal/prepared" ] && [ ! -f "$journal/confirmed" ]; then restore || return 1; fi
+  finish
+ fi
+}
+reload_network() {
+ # Stop STA/AP before changing bridge membership on the vendor driver.
+ /etc/init.d/cm2012-ap stop || return 1
+ ifdown lan || return 1
+ ubus call network reload >/dev/null || return 1
+ /etc/init.d/firewall restart || return 1
+ /etc/init.d/cm2012-ap restart || return 1
+ /etc/init.d/dnsmasq restart || return 1
+}
+ready() {
+ local role enabled uplink
+ role=$(uci -q get cm2012.settings.eth_role || echo wan)
+ enabled=$(uci -q get cm2012.ap.enabled || echo 1)
+ uplink=$(uci -q get cm2012.settings.uplink || echo ethernet)
+ [ -s "$state/ready" ] || return 1
+ if [ "$role" = lan ]; then
+  [ -d /sys/class/net/br-lan/brif/eth0 ] || return 1
+  if [ "$enabled" = 1 ]; then [ -d /sys/class/net/br-lan/brif/ap0 ] || return 1; fi
+ fi
+ # WAN/AP-off retains the existing wired management path.
+ if [ "$role" = lan ] || [ "$enabled" = 1 ]; then
+  ubus call network.interface.lan status | grep -q '"up": true' || return 1
+ fi
+ if [ "$uplink" = wifi ]; then
+  ubus call network.interface.wwan status | grep -q '"up": true' || return 1
+ fi
+ pidof dnsmasq >/dev/null || return 1
+ /sbin/fw3 print >/dev/null 2>&1 || return 1
+}
+monotonic() { local up rest; read up rest < /proc/uptime; printf '%s' "${up%%.*}"; }
+group_active() {
+ local group="$1" path record rest
+ for path in /proc/[0-9]*/stat; do
+  read -r record 2>/dev/null < "$path" || continue
+  # A comm field may contain spaces or parentheses; state follows the final ).
+  rest=${record##*) }; set -- $rest
+  [ "${3:-}" = "$group" ] && [ "${1:-}" != Z ] && return 0
+ done
+ return 1
+}
+stop_checker() {
+ local group="$1" tries=0
+ # The checker has its own session; kill foreground service/IPC children too.
+ kill -TERM -- "-$group" 2>/dev/null || true
+ # Cover cancellation before setsid has established the session.
+ kill -TERM "$group" 2>/dev/null || true
+ kill -KILL "$group" 2>/dev/null || true
+ kill -KILL -- "-$group" 2>/dev/null || true
+ while group_active "$group"; do
+  tries=$((tries+1)); [ "$tries" -le 5 ] || return 1
+  sleep 1
+ done
+ wait "$group" 2>/dev/null || true
+}
+check_network() {
+ local generation="$1" deadline="$2"
+ if reload_network; then
+  while [ "$(monotonic)" -lt "$deadline" ] && [ ! -f "$journal/rolling-back" ]; do
+   if [ "$(cat "$state/ready" 2>/dev/null || true)" = "$generation" ] && ready &&
+      [ ! -f "$journal/rolling-back" ] && [ "$(monotonic)" -lt "$deadline" ]; then
+    printf '%s' "$generation" > "$state/pending/ready"
+   else rm -f "$state/pending/ready"; fi
+   sleep 1
+  done
+ fi
+}
+
+case "${1:-}" in
+prepare) prepare "$2" ;;
+snapshot) snapshot ;;
+confirm) decide confirm "$2" ;;
+request-rollback) decide rollback; touch "$state/pending/rollback" ;;
+abort) restore; finish ;;
+recover) recover ;;
+ready) ready ;;
+check)
+ check_network "$2" "$3"
+ # Keep our PID/session reserved until the parent explicitly stops us.
+ while :; do sleep 1; done
+ ;;
+transaction)
+ [ -f "$journal/prepared" ] && [ -f "$state/pending/token" ] || exit 1
+ generation=$(sha256sum "$config_dir/cm2012"); generation=${generation%% *}
+ deadline=$(( $(monotonic) + 90 ))
+ sleep 2
+ # Service work or a stuck IPC call must not hold the rollback clock.
+ setsid /usr/libexec/cm2012-network check "$generation" "$deadline" & checker=$!
+ while [ "$(monotonic)" -lt "$deadline" ] && [ ! -f "$journal/confirmed" ] && [ ! -f "$state/pending/rollback" ]; do sleep 1; done
+ # If an uninterruptible service remains, retain the journal for recovery.
+ stop_checker "$checker" || exit 1
+ # A concurrent confirmation/request may hold the short durable decision lock.
+ if wait_decision rollback; then
+  restore
+  reload_network || exit 1
+ elif [ ! -f "$journal/confirmed" ]; then
+  exit 1
+ fi
+ finish
+ ;;
+*) exit 2 ;;
+esac
