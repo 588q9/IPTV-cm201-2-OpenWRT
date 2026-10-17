@@ -32,8 +32,7 @@ def compile_legacy(root, resources, official, ubus, headers, linklibs, common, r
     sources = {}
     for name in ('iptables-source', 'firewall3-source'):
         directory = work / name
-        extract_source(resources[name], directory)
-        sources[name] = next(p for p in directory.iterdir() if p.is_dir())
+        sources[name] = extract_source(resources[name], directory, workspace=root / 'local/build')
     ipt, fw = sources['iptables-source'], sources['firewall3-source']
     # 上游包含 MARK/mark 等不同文件；Windows 解包会将其覆盖。
     with tarfile.open(resources['iptables-source']) as archive:

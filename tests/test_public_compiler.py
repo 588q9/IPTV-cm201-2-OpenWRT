@@ -3,6 +3,9 @@ from pathlib import Path
 import struct
 import sys
 import unittest
+import tempfile
+import zipfile
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 from cm2012.compiler import elf_check
@@ -48,6 +51,53 @@ class MemoryELF:
 
 
 class CompilerTests(unittest.TestCase):
+    def test_toolchain_repairs_partial_and_corrupt_expansion_then_reuses_healthy_cache(self):
+        from cm2012 import compiler
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'zig.zip'
+            with zipfile.ZipFile(source, 'w') as archive:
+                archive.writestr('zig-windows-x86_64-0.13.0/zig.exe', b'zig')
+                archive.writestr('zig-windows-x86_64-0.13.0/lib/std.zig', b'good')
+            destination = root / 'local/toolchain'
+            zig = destination / 'zig-windows-x86_64-0.13.0/zig.exe'
+            zig.parent.mkdir(parents=True)
+            zig.write_bytes(b'zig')
+            private = root / 'local/private.txt'
+            private.write_bytes(b'keep')
+            self.assertEqual(compiler.prepare_toolchain(root, source), zig)
+            library = zig.parent / 'lib/std.zig'
+            self.assertEqual(library.read_bytes(), b'good')
+            library.write_bytes(b'evil')
+            compiler.prepare_toolchain(root, source)
+            self.assertEqual(library.read_bytes(), b'good')
+            before = {p: (p.stat().st_mtime_ns, p.stat().st_ino)
+                      for p in destination.rglob('*')}
+            with patch('cm2012.resources.extract_zip', side_effect=AssertionError('healthy cache mutated')):
+                compiler.prepare_toolchain(root, source)
+            self.assertEqual(before, {p: (p.stat().st_mtime_ns, p.stat().st_ino)
+                                      for p in destination.rglob('*')})
+            self.assertEqual(private.read_bytes(), b'keep')
+
+    def test_failed_toolchain_extraction_never_publishes_partial_cache(self):
+        from cm2012 import compiler, resources
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'zig.zip'
+            with zipfile.ZipFile(source, 'w') as archive:
+                archive.writestr('zig-windows-x86_64-0.13.0/zig.exe', b'zig')
+                archive.writestr('zig-windows-x86_64-0.13.0/lib/std.zig', b'good')
+            destination = root / 'local/toolchain'
+            def interrupted(source, staging):
+                staging.mkdir(parents=True, exist_ok=True)
+                (staging / 'partial').write_bytes(b'partial')
+                raise OSError('interrupted')
+            with patch.object(resources, 'extract_zip', side_effect=interrupted):
+                with self.assertRaises(OSError):
+                    compiler.prepare_toolchain(root, source)
+            self.assertFalse(destination.exists())
+            self.assertEqual(compiler.prepare_toolchain(root, source).read_bytes(), b'zig')
+
     def test_reject_host_path_in_actual_needed_string_table(self):
         # 原始错误：无 SONAME 的 libc 通过绝对路径链接后生成此依赖。
         for wrong in ('C:\\build\\link-libs\\libc.so', '/host/build/libc.so',

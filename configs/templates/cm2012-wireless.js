@@ -11,7 +11,7 @@ var confirm = rpc.declare({ object: 'cm2012', method: 'confirm', params: ['token
 var rollback = rpc.declare({ object: 'cm2012', method: 'rollback', params: ['token'] });
 
 return view.extend({
- load: function() { return status(); },
+ load: function() { return status().then(function(s) { if (s.error) throw new Error(s.error); return s; }); },
  render: function(data) {
   var c = data.config, token = sessionStorage.getItem('cm2012-token');
   var fields = {};
@@ -41,6 +41,7 @@ return view.extend({
   }
   (c.routes || []).forEach(addRoute);
   function refresh(s) {
+   if (s.error) { result.textContent = '读取状态失败：' + s.error; return; }
    if (s.pending_token) {
     token = s.pending_token; sessionStorage.setItem('cm2012-token', token);
    }

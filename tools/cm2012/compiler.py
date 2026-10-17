@@ -8,7 +8,7 @@ import struct
 import subprocess
 
 from .archives import read_tar_bytes
-from .resources import extract_source, extract_zip, read_lock, verify_resource
+from .resources import extract_source, prepare_zip_cache, read_lock, verify_resource
 
 UBUSD_NEEDED = ('libubox.so.20260213', 'libblobmsg_json.so.20260213',
                 'libjson-c.so.5', 'libc.so')
@@ -126,21 +126,25 @@ def elf_check(path, static=True, expected_needed=None):
     return info['needed']
 
 
+def prepare_toolchain(root, source):
+    directory = prepare_zip_cache(source, root / 'local/toolchain', workspace=root / 'local')
+    zig = directory / 'zig-windows-x86_64-0.13.0/zig.exe'
+    if not zig.is_file():
+        raise ValueError('锁定工具链缺少 zig.exe')
+    return zig
+
+
 def compile_all(root):
     locks = read_lock(root)
     # 完整资源检查在离线编译前执行，缺失时不自动调用 prepare。
     resources = {name: verify_resource(root, item) for name, item in locks.items()}
     work = root / 'local/build'
     work.mkdir(parents=True, exist_ok=True)
-    toolchain = root / 'local/toolchain'
-    zig = toolchain / 'zig-windows-x86_64-0.13.0/zig.exe'
-    if not zig.exists():
-        extract_zip(resources['zig'], toolchain)
+    zig = prepare_toolchain(root, resources['zig'])
     source_dirs = {}
-    for name in ('ubus-source', 'libubox-source', 'mtd-utils-source', 'hiloot-source'):
+    for name in ('ubus-source', 'libubox-source', 'mtd-utils-source'):
         directory = work / name
-        extract_source(resources[name], directory)
-        source_dirs[name] = next(path for path in directory.iterdir() if path.is_dir())
+        source_dirs[name] = extract_source(resources[name], directory, workspace=work)
     ubus, ubox, mtd = (source_dirs[n] for n in ('ubus-source', 'libubox-source', 'mtd-utils-source'))
     patched = apply_patch((ubus / 'ubusd_id.c').read_text(encoding='utf-8'),
                           (root / 'tools/cm2012/patches/ubusd-3.18.patch').read_text(encoding='utf-8'))

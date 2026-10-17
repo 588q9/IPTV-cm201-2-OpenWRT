@@ -11,15 +11,92 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class NetworkTests(unittest.TestCase):
     def test_rollback_cancels_delayed_service_descendants(self):
-        shell=shutil.which('sh')
-        if not shell or not shutil.which('setsid'):
-            self.skipTest('POSIX process sessions unavailable; run fixture natively on box')
+        if os.name == 'nt':
+            self.skipTest('Linux process sessions unavailable; run fixture natively on box')
+        self.assertIsNotNone(shutil.which('setsid'), 'setsid is required on Linux CI')
+        functions=(ROOT/'configs/templates/cm2012-network').read_text(encoding='utf-8').split('\ncase ',1)[0]
+        for name in ('dash','bash'):
+            with self.subTest(shell=name):
+                shell=shutil.which(name)
+                self.assertIsNotNone(shell, name+' is required on Linux CI')
+                with tempfile.TemporaryDirectory() as folder:
+                    root=Path(folder);source=root/'functions.sh';source.write_text(functions,encoding='utf-8',newline='\n')
+                    result=subprocess.run([shell,str(ROOT/'tests/fixtures/cm2012-checker.sh'),source.as_posix(),root.as_posix(),shell],capture_output=True,timeout=20)
+                    self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+                    self.assertIn(b'CHECKER_DESCENDANTS_CANCELLED',result.stdout)
+
+    def test_checker_fixture_rejects_failed_session_start(self):
+        if os.name == 'nt': self.skipTest('Linux process sessions unavailable')
+        shell=shutil.which('dash');self.assertIsNotNone(shell)
+        self.assertIsNotNone(shutil.which('setsid'))
         functions=(ROOT/'configs/templates/cm2012-network').read_text(encoding='utf-8').split('\ncase ',1)[0]
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);source=root/'functions.sh';source.write_text(functions,encoding='utf-8',newline='\n')
-            result=subprocess.run([shell,str(ROOT/'tests/fixtures/cm2012-checker.sh'),source.as_posix(),root.as_posix()],capture_output=True,timeout=15)
+            failed=root/'failed-shell';failed.write_text('#!/bin/sh\nexit 23\n',newline='\n');failed.chmod(0o700)
+            result=subprocess.run([shell,str(ROOT/'tests/fixtures/cm2012-checker.sh'),source.as_posix(),root.as_posix(),failed.as_posix()],capture_output=True,timeout=10)
+            self.assertNotEqual(result.returncode,0,result.stdout+result.stderr)
+            self.assertNotIn(b'CHECKER_DESCENDANTS_CANCELLED',result.stdout)
+            self.assertIn(b'checker exited before child handshake',result.stderr)
+
+    def test_journal_failures_never_report_success(self):
+        shell=shutil.which('sh')
+        if not shell: self.skipTest('POSIX sh unavailable')
+        functions=(ROOT/'configs/templates/cm2012-network').read_text(encoding='utf-8').split('\ncase ',1)[0]
+        cases=[('prepare token','sync'),('snapshot','cp'),('snapshot','sync'),('decide rollback','touch')]
+        for action,failure in cases:
+            with self.subTest(action=action,failure=failure), tempfile.TemporaryDirectory() as folder:
+                root=Path(folder);config=root/'config';config.mkdir();journal=root/'journal';state=root/'state';state.mkdir()
+                for name in ('cm2012','network','dhcp','firewall'): (config/name).write_text('original')
+                if action!='prepare token':
+                    journal.mkdir();(journal/'prepared').touch()
+                script=root/'test.sh'
+                script.write_text(functions+f'\nconfig_dir=$1; journal=$2; state=$3\n{failure}() {{ return 1; }}\nif {action}; then echo FALSE_SUCCESS; exit 8; fi\n[ -d "$journal" ]\n',encoding='utf-8',newline='\n')
+                result=subprocess.run([shell,script.as_posix(),config.as_posix(),journal.as_posix(),state.as_posix()],capture_output=True,timeout=15)
+                self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+
+    def test_readiness_rejects_unreadable_uci(self):
+        shell=shutil.which('sh')
+        if not shell: self.skipTest('POSIX sh unavailable')
+        functions=(ROOT/'configs/templates/cm2012-network').read_text(encoding='utf-8').split('\ncase ',1)[0]
+        functions=functions.replace('/sbin/fw3 print','true')
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);(root/'ready').write_text('generation');script=root/'test.sh'
+            script.write_text(functions+'''
+state=$1
+uci() { return 1; }
+ubus() { echo '{"up": true}'; }
+pidof() { return 0; }
+if ready; then echo FALSE_READY; exit 8; fi
+''',encoding='utf-8',newline='\n')
+            result=subprocess.run([shell,script.as_posix(),root.as_posix()],capture_output=True,timeout=10)
             self.assertEqual(result.returncode,0,result.stdout+result.stderr)
-            self.assertIn(b'CHECKER_DESCENDANTS_CANCELLED',result.stdout)
+
+    def test_readiness_keeps_legacy_wan_default_when_eth_role_is_absent(self):
+        shell = shutil.which('sh')
+        if not shell:
+            self.skipTest('POSIX sh unavailable')
+        functions = (ROOT / 'configs/templates/cm2012-network').read_text(encoding='utf-8').split('\ncase ', 1)[0]
+        functions = functions.replace('/sbin/fw3 print', 'true')
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'ready').write_text('generation')
+            script = root / 'test.sh'
+            script.write_text(functions + '''
+state=$1
+uci() {
+ case "$*" in
+  '-q show cm2012') return 0;;
+  '-q get cm2012.settings.eth_role') return 1;;
+  '-q get cm2012.ap.enabled') echo 0;;
+  '-q get cm2012.settings.uplink') echo ethernet;;
+  *) return 1;;
+ esac
+}
+pidof() { return 0; }
+ready
+''', encoding='utf-8', newline='\n')
+            result = subprocess.run([shell, script.as_posix(), root.as_posix()], capture_output=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_failed_restore_keeps_journal_and_blocks_recovery(self):
         shell=shutil.which('sh')

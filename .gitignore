@@ -22,6 +22,9 @@
 !/tests/
 /tests/*
 !/tests/test_public_*.py
+!/tests/integration/
+/tests/integration/*
+!/tests/integration/test_compiler.py
 !/tests/fixtures/
 !/tests/device/
 /tests/device/*

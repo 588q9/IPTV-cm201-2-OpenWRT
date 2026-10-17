@@ -10,7 +10,17 @@ const journal = '/etc/cm2012-transaction';
 function write(path, value) {
  let f = open(path, 'w', 0600);
  if (!f) die('无法写入事务文件');
- f.write(value); f.close(); chmod(path, 0600);
+ let written = f.write(value), closed = f.close();
+ if (written != length(value) || !closed || !chmod(path,0600)) die('无法写入事务文件');
+}
+function abort_error(message) {
+ if (system('/usr/libexec/cm2012-network abort') != 0)
+  return {error:message + ' 恢复失败，事务记录已保留，请修复后重试恢复。'};
+ return {error:message + ' 已恢复全部配置。'};
+}
+function load_configs(c) {
+ for (let config in ['cm2012','network','dhcp','firewall']) if (!c.load(config)) return false;
+ return true;
 }
 function control(command) {
  let f = popen('/usr/libexec/cm2012-wpa-control ' + command + ' 2>/dev/null');
@@ -38,6 +48,7 @@ function route_status(c,b) {
 return { cm2012: {
  status: { call: function() {
   let c = cursor(), b = connect();
+  if (!load_configs(c)) return {error:'无法读取网络配置。'};
   let sta = {};
   for (let line in split(control('STATUS'), '\n')) {
    let m = match(line, /^(wpa_state|ssid|freq)=(.*)$/);
@@ -75,6 +86,7 @@ return { cm2012: {
  apply: { args: { ssid: '', key: '', channel: '', enabled: '', uplink: '', upstream_ssid: '', upstream_key: '',
    eth_role: '', allow_upstream: '', routes_json: '', upstream_sources_json: '' }, call: function(request) {
   let a = request.args, c = cursor();
+  if (!load_configs(c)) return {error:'无法读取网络配置，未应用更改。'};
   let apkey = a.key || c.get('cm2012', 'ap', 'key');
   let stakey = a.upstream_key || c.get('cm2012', 'sta', 'key');
   // Missing new arguments from an older client preserve existing settings.
@@ -98,20 +110,21 @@ return { cm2012: {
    system('rm -rf /tmp/cm2012-wifi/pending'); return { error: '无法备份配置，未应用更改。' };
   }
   let rendered = network.configure(c,cfg);
-  if (rendered.error) { system('/usr/libexec/cm2012-network abort'); return rendered; }
-  write(pending + '/token', token);
-  c.set('cm2012', 'ap', 'ssid', a.ssid); c.set('cm2012', 'ap', 'key', apkey);
-  c.set('cm2012', 'ap', 'enabled', a.enabled); c.set('cm2012', 'ap', 'channel', a.channel);
-  c.set('cm2012', 'settings', 'uplink', a.uplink);
-  c.set('cm2012', 'sta', 'ssid', a.upstream_ssid); c.set('cm2012', 'sta', 'key', stakey || '');
-  if (!c.commit('cm2012') || !c.commit('network') || !c.commit('firewall')) {
-   system('/usr/libexec/cm2012-network abort'); return { error: '配置提交失败，已恢复全部配置。' };
-  }
-  chmod('/etc/config/cm2012', 0600);
-  if (system('/usr/libexec/cm2012-network snapshot') != 0) {
-   system('/usr/libexec/cm2012-network abort'); return { error: '无法记录已应用配置，已恢复。' };
-  }
-  system('/usr/libexec/cm2012-network transaction </dev/null >/tmp/cm2012-wifi/transaction.log 2>&1 &');
+  if (rendered.error) return abort_error(rendered.error);
+  try {
+   write(pending + '/token', token);
+   let changes = [ ['ap','ssid',a.ssid], ['ap','key',apkey], ['ap','enabled',a.enabled],
+    ['ap','channel',a.channel], ['settings','uplink',a.uplink],
+    ['sta','ssid',a.upstream_ssid], ['sta','key',stakey || ''] ];
+   for (let change in changes) if (!c.set('cm2012',change[0],change[1],change[2]))
+    return abort_error('配置写入失败。');
+   if (!c.commit('cm2012') || !c.commit('network') || !c.commit('firewall'))
+    return abort_error('配置提交失败。');
+   if (!chmod('/etc/config/cm2012',0600)) return abort_error('无法设置配置权限。');
+   if (system('/usr/libexec/cm2012-network snapshot') != 0) return abort_error('无法记录已应用配置。');
+   if (system('/usr/libexec/cm2012-network transaction </dev/null >/tmp/cm2012-wifi/transaction.log 2>&1 &') != 0)
+    return abort_error('无法启动配置事务。');
+  } catch (e) { return abort_error('无法保存配置事务。'); }
   return { token, timeout: 90 };
  } },
  confirm: { args: { token: '' }, call: function(request) {

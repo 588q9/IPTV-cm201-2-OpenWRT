@@ -83,15 +83,42 @@ function installed(route, device, table) {
  }
  return false;
 }
-function remove_owned(c, config, section_type) {
- let names = [];
- c.foreach(config, section_type, function(s) { if (s.cm2012 == '1') push(names, s['.name']); });
- for (let i = 0; i < length(names); i++) c.delete(config, names[i]);
+function set(c, config, section, option, value) {
+ let ok = value == null ? c.set(config,section,option) : c.set(config,section,option,value);
+ if (!ok) die('UCI write failed: ' + config + '.' + section);
+}
+function remove(c, config, section, option) {
+ // Missing options are idempotent; actual mutation failures are not.
+ let present = option == null ? c.get(config,section) : c.get(config,section,option);
+ if (present == null) return;
+ let ok = option == null ? c.delete(config,section) : c.delete(config,section,option);
+ if (!ok) die('UCI delete failed: ' + config + '.' + section);
 }
 function available(c, config, prefix) {
  let n = 0;
  while (c.get(config, prefix + n)) n++;
  return prefix + n;
+}
+function sync_owned(c, config, section_type, prefix, wanted, identity) {
+ let existing = [], used = [];
+ c.foreach(config,section_type,function(s) { if (s.cm2012 == '1') push(existing,s); });
+ for (let i = 0; i < length(wanted); i++) {
+  let item = wanted[i], name = null;
+  for (let j = 0; j < length(existing); j++) {
+   let old = existing[j], same = !member(used,old['.name']);
+   for (let k = 0; k < length(identity); k++) if (old[identity[k]] != item[identity[k]]) same = false;
+   if (same) { name = old['.name']; break; }
+  }
+  if (!name) { name = available(c,config,prefix); set(c,config,name,section_type); }
+  push(used,name);
+  let options = keys(item);
+  for (let k = 0; k < length(options); k++) {
+   let option = options[k];
+   if (item[option] == null) remove(c,config,name,option);
+   else set(c,config,name,option,item[option]);
+  }
+ }
+ for (let i = 0; i < length(existing); i++) if (!member(used,existing[i]['.name'])) remove(c,config,existing[i]['.name']);
 }
 function routes(c) {
  let result = [];
@@ -102,44 +129,45 @@ function routes(c) {
  return result;
 }
 function configure(c, cfg) {
+ try {
+ let configs = ['cm2012','network','firewall'];
+ for (let i = 0; i < length(configs); i++) if (!c.load(configs[i])) die('UCI read failed: ' + configs[i]);
  let address = c.get('network','lan','ipaddr');
  if (type(address) == 'array') address = address[0];
  let destination = subnet(address, c.get('network','lan','netmask'));
  if (!destination) return { error: '当前 LAN 地址无效，不能修改网络。' };
  let bridge = c.get('network','cm2012_bridge');
  if (bridge && c.get('network','cm2012_bridge','cm2012') != '1') return { error: '项目桥接配置名称已被其他配置占用。' };
- c.set('cm2012','settings','eth_role',cfg.eth_role);
- c.set('cm2012','settings','allow_upstream',cfg.allow_upstream);
- if (length(cfg.sources)) c.set('cm2012','settings','upstream_sources',cfg.sources);
- else c.delete('cm2012','settings','upstream_sources');
- c.set('network','lan','device',cfg.eth_role == 'lan' ? 'br-lan' : 'ap0');
+ set(c,'cm2012','settings','eth_role',cfg.eth_role);
+ set(c,'cm2012','settings','allow_upstream',cfg.allow_upstream);
+ if (length(cfg.sources)) set(c,'cm2012','settings','upstream_sources',cfg.sources);
+ else remove(c,'cm2012','settings','upstream_sources');
+ set(c,'network','lan','device',cfg.eth_role == 'lan' ? 'br-lan' : 'ap0');
  if (cfg.eth_role == 'lan') {
-  c.delete('network','wan','device');
-  c.set('network','cm2012_bridge','device');
-  c.set('network','cm2012_bridge','name','br-lan');
-  c.set('network','cm2012_bridge','type','bridge');
-  c.set('network','cm2012_bridge','cm2012','1');
-  c.set('network','cm2012_bridge','bridge_empty','1');
-  c.set('network','cm2012_bridge','ports',['eth0','ap0']);
+  remove(c,'network','wan','device');
+  set(c,'network','cm2012_bridge','device');
+  set(c,'network','cm2012_bridge','name','br-lan');
+  set(c,'network','cm2012_bridge','type','bridge');
+  set(c,'network','cm2012_bridge','cm2012','1');
+  set(c,'network','cm2012_bridge','bridge_empty','1');
+  set(c,'network','cm2012_bridge','ports',['eth0','ap0']);
  } else {
-  c.set('network','wan','device','eth0');
-  if (bridge) c.delete('network','cm2012_bridge');
+  set(c,'network','wan','device','eth0');
+  if (bridge) remove(c,'network','cm2012_bridge');
  }
- remove_owned(c,'network','route');
- let destinations = [destination];
+ let destinations = [destination], wanted_routes = [];
  for (let i = 0; i < length(cfg.routes); i++) {
-  let r = cfg.routes[i], name = available(c,'network','cm2012_route_');
-  c.set('network',name,'route'); c.set('network',name,'cm2012','1');
-  c.set('network',name,'target',r.target); c.set('network',name,'interface',r.interface);
-  c.set('network',name,'metric',r.metric); c.set('network',name,'disabled',r.enabled == '1' ? '0' : '1');
-  if (r.gateway) c.set('network',name,'gateway',r.gateway);
+  let r = cfg.routes[i];
+  push(wanted_routes,{cm2012:'1',target:r.target,interface:r.interface,metric:r.metric,
+   disabled:r.enabled == '1' ? '0' : '1',gateway:r.gateway || null});
   if (r.enabled == '1' && r.interface == 'lan' && !member(destinations,r.target)) push(destinations,r.target);
  }
- remove_owned(c,'firewall','rule');
+ sync_owned(c,'network','route','cm2012_route_',wanted_routes,['target','interface']);
+ let wanted_rules = [];
  let upper = cfg.uplink == 'wifi' ? 'wwan' : 'wan', zone_name = null;
  c.foreach('firewall','zone',function(s) {
   // Anonymous UCI cfg names change after edits. Keep an explicit identity.
-  if (!s.cm2012_zone_id) c.set('firewall',s['.name'],'cm2012_zone_id',s.name);
+  if (!s.cm2012_zone_id) set(c,'firewall',s['.name'],'cm2012_zone_id',s.name);
   let exclusions = list(s.masq_dest), previous = list(s.cm2012_masq_exempt), remaining = [];
   for (let i = 0; i < length(exclusions); i++) if (!member(previous,exclusions[i])) push(remaining,exclusions[i]);
   let added = [];
@@ -150,23 +178,21 @@ function configure(c, cfg) {
     if (!member(remaining,exemption)) { push(remaining,exemption); push(added,exemption); }
    }
   }
-  if (length(remaining)) c.set('firewall',s['.name'],'masq_dest',remaining);
-  else c.delete('firewall',s['.name'],'masq_dest');
-  if (length(added)) c.set('firewall',s['.name'],'cm2012_masq_exempt',added);
-  else c.delete('firewall',s['.name'],'cm2012_masq_exempt');
+  if (length(remaining)) set(c,'firewall',s['.name'],'masq_dest',remaining);
+  else remove(c,'firewall',s['.name'],'masq_dest');
+  if (length(added)) set(c,'firewall',s['.name'],'cm2012_masq_exempt',added);
+  else remove(c,'firewall',s['.name'],'cm2012_masq_exempt');
  });
  if (cfg.allow_upstream == '1') {
   if (!zone_name) return { error: '找不到所选上联的防火墙区域。' };
   for (let i = 0; i < length(cfg.sources); i++) for (let j = 0; j < length(destinations); j++) {
-   let name = available(c,'firewall','cm2012_forward_');
-   c.set('firewall',name,'rule'); c.set('firewall',name,'cm2012','1');
-   c.set('firewall',name,'name','CM2012 upstream routing');
-   c.set('firewall',name,'src',zone_name); c.set('firewall',name,'dest','lan');
-   c.set('firewall',name,'src_ip',cfg.sources[i]); c.set('firewall',name,'dest_ip',destinations[j]);
-   c.set('firewall',name,'family','ipv4'); c.set('firewall',name,'proto','all'); c.set('firewall',name,'target','ACCEPT');
+   push(wanted_rules,{cm2012:'1',name:'CM2012 upstream routing',src:zone_name,dest:'lan',
+    src_ip:cfg.sources[i],dest_ip:destinations[j],family:'ipv4',proto:'all',target:'ACCEPT'});
   }
  }
+ sync_owned(c,'firewall','rule','cm2012_forward_',wanted_rules,['src','dest','src_ip','dest_ip']);
  return {};
+ } catch (e) { return {error:'网络配置写入失败。'}; }
 }
 function equal(a,b) {
  if (a == null || b == null) return a == b;
@@ -188,12 +214,35 @@ function equal(a,b) {
  return a == b;
 }
 function restore_diff(before,applied,current) {
- let result = [], names = keys(before), after_names = keys(applied);
+ let result = [], names = keys(before), after_names = keys(applied), untouched = [];
+ // Anonymous cfg identifiers change with position. Pair untouched content first.
+ for (let i = 0; i < length(names); i++) {
+  let b = before[names[i]];
+  if (!b['.anonymous'] || b['.type'] == 'zone') continue;
+  let matches = [];
+  for (let j = 0; j < length(after_names); j++) {
+   let a = applied[after_names[j]];
+   if (a['.anonymous'] && equal(b,a)) push(matches,after_names[j]);
+  }
+  if (length(matches) != 1 || member(untouched,matches[0])) die('Ambiguous anonymous UCI identity; journal retained');
+  push(untouched,matches[0]);
+ }
+ for (let i = 0; i < length(after_names); i++) {
+  let a = applied[after_names[i]];
+  if (a['.anonymous'] && a['.type'] != 'zone' && !member(untouched,after_names[i]))
+   die('Unmatched anonymous UCI identity; journal retained');
+ }
+
  for (let i = 0; i < length(after_names); i++) if (!member(names,after_names[i])) push(names,after_names[i]);
  for (let i = 0; i < length(names); i++) {
   let name = names[i], b = before[name], a = applied[name], live = current[name];
-  if (equal(b,a)) continue;
-  if (!b && equal(live,a)) { push(result,{section:name,remove:true}); continue; }
+  if ((b && b['.anonymous'] && b['.type'] != 'zone') || member(untouched,name) || equal(b,a)) continue;
+  if (!b) {
+   if (equal(live,a)) push(result,{section:name,remove:true});
+   continue;
+  }
+  // Another writer deleted a section that our transaction only edited.
+  if (a && !live) continue;
   if (!a && live) continue;
   let options = b ? keys(b) : [], after_options = a ? keys(a) : [];
   for (let j = 0; j < length(after_options); j++) if (!member(options,after_options[j])) push(options,after_options[j]);

@@ -1,9 +1,13 @@
 """RAM 实验分支修改与所有闪存只读参数保护。"""
 import hashlib
 import importlib
+import io
 from pathlib import Path
 import struct
 import sys
+import tarfile
+import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 from test_public_serial import Wire
@@ -12,6 +16,80 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 
 
 class RamTests(unittest.TestCase):
+    def test_bootrom_reset_failure_survives_serial_close_failure(self):
+        import asyncio
+        module = self.module()
+        class ResetFailure(Exception):
+            pass
+        class ClosingWire:
+            is_open = False
+            baudrate = 115200
+            def open(self):
+                self.is_open = True
+            def write(self, data):
+                return len(data)
+            def reset_input_buffer(self):
+                pass
+            def close(self):
+                raise OSError('serial close failure')
+        params = SimpleNamespace(regs=[None, b'DDR'], head=SimpleNamespace(size=0x3000),
+                                 aux=SimpleNamespace(size=0x5400), boot=SimpleNamespace(end=0xd9200))
+        imports = {'serial': SimpleNamespace(Serial=lambda *args, **kwargs: ClosingWire()),
+                   'serial_asyncio': SimpleNamespace(),
+                   'bootimg': SimpleNamespace(BootParam=SimpleNamespace(parse_v1=lambda image: params), Memcpy=object),
+                   'hiloot': SimpleNamespace(Device=object),
+                   'utils.serial': SimpleNamespace(SerialLogger=object)}
+        with (patch.dict(sys.modules, imports), patch.object(sys, 'path', sys.path.copy()),
+              patch.object(module, 'patch_bootloader', return_value=b'bootloader'),
+              patch.object(module, 'sha256', return_value='8f2d25d2bf51cf1426950186e0dd9b9176dd25c92e487b1b9fb3c26e821d8931'),
+              patch.object(module.time, 'sleep'),
+              patch.object(module, 'prepare_reset', side_effect=ResetFailure('reset failed'))):
+            with self.assertRaises(ResetFailure):
+                asyncio.run(module.bootrom_console(Path('hiloot-fixture'),
+                    {'port': 'unused', 'profile': {'fastboot_sha256': 'fixture'}}, {'fastboot': b'fixture'}))
+
+    def test_both_ram_branches_prepare_locked_hiloot_before_hardware_handoff(self):
+        module = self.module()
+        from cm2012 import resources
+        import zlib
+        payload = b'kernel'
+        header = bytearray(64)
+        struct.pack_into('>7I', header, 0, 0x27051956, 0, 0, len(payload),
+                         0x02000800, 0x02000800, zlib.crc32(payload))
+        struct.pack_into('>I', header, 4, zlib.crc32(header))
+        kernel = bytes(header) + payload
+        class HandoffReached(Exception):
+            pass
+        for bootstrap in (False, True):
+            with self.subTest(bootstrap=bootstrap), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                source = root / 'hiloot.tar'
+                with tarfile.open(source, 'w') as archive:
+                    entry = tarfile.TarInfo('hiloot-locked/hiloot.py')
+                    entry.size = 6
+                    archive.addfile(entry, io.BytesIO(b'locked'))
+                lock = {'path': 'hiloot.tar', 'size': source.stat().st_size,
+                        'sha256': hashlib.sha256(source.read_bytes()).hexdigest()}
+                output = root / 'output'
+                output.mkdir()
+                (output / 'ram.cpio.gz').write_bytes(b'ram')
+                binary = root / 'ubusd'
+                binary.write_bytes(b'ELF-fixture')
+                async def handoff(hiloot_root, config, stock):
+                    self.assertEqual(hiloot_root, root / 'local/build/hiloot-source/hiloot-locked')
+                    self.assertEqual((hiloot_root / 'hiloot.py').read_bytes(), b'locked')
+                    self.assertEqual((output / 'kernel.uImage').read_bytes(), kernel)
+                    raise HandoffReached
+                with (patch.object(resources, 'read_lock', return_value={'hiloot-source': lock}),
+                      patch.object(module, 'compile_all', return_value={'ubusd': binary}),
+                      patch.object(module, 'make_seed', return_value={}),
+                      patch.object(module, 'verify_output'),
+                      patch.object(module, 'kernel_from', return_value=kernel),
+                      patch.object(module, 'bootrom_console', side_effect=handoff)):
+                    with self.assertRaises(HandoffReached):
+                        module.ram_test(root, {'profile': {'total_bytes': 8589934592}},
+                                        {'boot': b'fixture'}, output, bootstrap=bootstrap)
+
     def test_restore_ignores_prompt_before_reboot_starts(self):
         module = self.module()
         class RebootWire:

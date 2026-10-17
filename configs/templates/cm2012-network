@@ -11,9 +11,9 @@ prepare() {
  for name in cm2012 network dhcp firewall; do
   if ! cp -p "$config_dir/$name" "$journal/$name"; then rm -rf "$journal"; return 1; fi
  done
- printf '%s' "$1" > "$journal/token"
- sync
- touch "$journal/prepared"
+ printf '%s' "$1" > "$journal/token" || return 1
+ sync || return 1
+ touch "$journal/prepared" || return 1
  sync
 }
 restore() {
@@ -31,11 +31,13 @@ restore() {
  done
  sync
 }
-finish() { rm -rf "$journal" "$state/pending"; sync; }
+finish() { rm -rf "$journal" "$state/pending" || return 1; sync; }
 snapshot() {
- mkdir "$journal/applied"
- for name in cm2012 network dhcp firewall; do cp -p "$config_dir/$name" "$journal/applied/$name"; done
- sync; touch "$journal/applied/complete"; sync
+ mkdir "$journal/applied" || return 1
+ for name in cm2012 network dhcp firewall; do cp -p "$config_dir/$name" "$journal/applied/$name" || return 1; done
+ sync || return 1
+ touch "$journal/applied/complete" || return 1
+ sync
 }
 decide() {
  mkdir "$journal/decision.lock" 2>/dev/null || return 2
@@ -43,12 +45,12 @@ decide() {
  if [ "$1" = confirm ]; then
   if [ ! -f "$journal/rolling-back" ] && [ -f "$journal/prepared" ] &&
      [ "$(cat "$journal/token")" = "$2" ] && [ -f "$state/pending/ready" ]; then
-   touch "$journal/confirmed"; sync; result=0
+   if touch "$journal/confirmed" && sync; then result=0; fi
   fi
  elif [ ! -f "$journal/confirmed" ]; then
-  touch "$journal/rolling-back"; rm -f "$state/pending/ready"; sync; result=0
+  if touch "$journal/rolling-back" && rm -f "$state/pending/ready" && sync; then result=0; fi
  fi
- rmdir "$journal/decision.lock"
+ rmdir "$journal/decision.lock" || return 1
  return "$result"
 }
 wait_decision() {
@@ -77,6 +79,8 @@ reload_network() {
 }
 ready() {
  local role enabled uplink
+ # Distinguish an unreadable package from an absent legacy option.
+ uci -q show cm2012 >/dev/null || return 1
  role=$(uci -q get cm2012.settings.eth_role || echo wan)
  enabled=$(uci -q get cm2012.ap.enabled || echo 1)
  uplink=$(uci -q get cm2012.settings.uplink || echo ethernet)
@@ -109,11 +113,11 @@ group_active() {
 stop_checker() {
  local group="$1" tries=0
  # The checker has its own session; kill foreground service/IPC children too.
- kill -TERM -- "-$group" 2>/dev/null || true
+ kill -TERM "-$group" 2>/dev/null || true
  # Cover cancellation before setsid has established the session.
  kill -TERM "$group" 2>/dev/null || true
  kill -KILL "$group" 2>/dev/null || true
- kill -KILL -- "-$group" 2>/dev/null || true
+ kill -KILL "-$group" 2>/dev/null || true
  while group_active "$group"; do
   tries=$((tries+1)); [ "$tries" -le 5 ] || return 1
   sleep 1
@@ -137,8 +141,8 @@ case "${1:-}" in
 prepare) prepare "$2" ;;
 snapshot) snapshot ;;
 confirm) decide confirm "$2" ;;
-request-rollback) decide rollback; touch "$state/pending/rollback" ;;
-abort) restore; finish ;;
+request-rollback) decide rollback && touch "$state/pending/rollback" ;;
+abort) restore && finish ;;
 recover) recover ;;
 ready) ready ;;
 check)

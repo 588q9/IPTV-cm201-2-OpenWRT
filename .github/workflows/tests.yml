@@ -3,6 +3,7 @@ on: [push, pull_request, workflow_dispatch]
 jobs:
   tests:
     strategy:
+      fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
@@ -13,8 +14,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: python -m unittest discover -s tests -p "test_public_*.py" -v
       - uses: actions/setup-node@v4
         with:
           node-version: '24.9.0'
       - run: node tests/fixtures/cm2012-ui.cjs
+      - run: node tests/fixtures/cm2012-network.cjs
+      - run: python -m unittest discover -s tests -p "test_public_*.py" -v

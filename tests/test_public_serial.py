@@ -6,6 +6,7 @@ import sys
 import unittest
 import zlib
 import re
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 
@@ -236,6 +237,158 @@ class ControlPacingTests(unittest.TestCase):
         with patch.object(module.time, 'monotonic', side_effect=lambda: clock[0]), \
              patch.object(module.time, 'sleep', side_effect=lambda seconds: clock.__setitem__(0, clock[0] + seconds)):
             self.assertEqual(link.command('cat /proc/cmdline'), 'ok\n')
+
+
+class LinkLifecycleTests(unittest.TestCase):
+    class Port(Wire):
+        def __init__(self, failures):
+            super().__init__(b'')
+            self.failures = failures
+            self.is_open = False
+            self._baudrate = 460800
+            self.restoration_attempted = False
+
+        def step(self, name):
+            if name in self.failures:
+                raise self.failures[name]
+
+        def open(self):
+            self.is_open = True
+            self.step('open')
+
+        def close(self):
+            self.is_open = False
+            self.step('close')
+
+        def set_buffer_size(self, **kwargs):
+            self.step('buffer')
+
+        def reset_input_buffer(self):
+            self.step('reset')
+
+        def write(self, data):
+            self.step('write')
+            return super().write(data)
+
+        @property
+        def baudrate(self):
+            return self._baudrate
+
+        @baudrate.setter
+        def baudrate(self, value):
+            self.restoration_attempted = True
+            self.step('baud')
+            self._baudrate = value
+
+    def test_enter_failure_closes_port_and_preserves_setup_error(self):
+        module = importlib.import_module('cm2012.serial_link')
+        for stage in ('open', 'buffer', 'write', 'reset'):
+            with self.subTest(stage=stage):
+                error = OSError('setup failed at ' + stage)
+                link = object.__new__(module.Link)
+                link.wire = self.Port({stage: error, 'close': OSError('close failed')})
+                with patch.object(module.time, 'sleep'), self.assertRaises(OSError) as raised:
+                    link.__enter__()
+                self.assertIs(raised.exception, error)
+                self.assertFalse(link.wire.is_open)
+
+    def test_exit_failure_always_closes_port_and_attempts_baud_restoration(self):
+        module = importlib.import_module('cm2012.serial_link')
+        for stage in ('write', 'baud'):
+            with self.subTest(stage=stage):
+                error = OSError('cleanup failed at ' + stage)
+                link = object.__new__(module.Link)
+                link.wire = self.Port({stage: error})
+                link.wire.is_open = True
+                with patch.object(module.time, 'sleep'), self.assertRaises(OSError) as raised:
+                    link.__exit__(None, None, None)
+                self.assertIs(raised.exception, error)
+                self.assertFalse(link.wire.is_open)
+                self.assertTrue(link.wire.restoration_attempted)
+
+    def test_exit_accepts_direct_no_argument_cleanup(self):
+        module = importlib.import_module('cm2012.serial_link')
+        link = object.__new__(module.Link)
+        link.wire = self.Port({})
+        link.wire.is_open = True
+        with patch.object(module.time, 'sleep'):
+            link.__exit__()
+        self.assertFalse(link.wire.is_open)
+        self.assertEqual(link.wire.baudrate, 115200)
+
+    def test_cleanup_failure_does_not_replace_body_error(self):
+        module = importlib.import_module('cm2012.serial_link')
+        for stage in ('write', 'baud', 'close'):
+            with self.subTest(stage=stage):
+                original = ValueError('transfer failed')
+                link = object.__new__(module.Link)
+                link.wire = self.Port({})
+                with patch.object(module.time, 'sleep'), self.assertRaises(ValueError) as raised:
+                    with link:
+                        link.wire.failures[stage] = OSError('cleanup failed')
+                        raise original
+                self.assertIs(raised.exception, original)
+                self.assertFalse(link.wire.is_open)
+
+
+class ControlDeadlineTests(unittest.TestCase):
+    def test_total_response_limit_applies_across_complete_log_lines(self):
+        module = importlib.import_module('cm2012.serial_link')
+        for phase in ('switch', 'restore'):
+            with self.subTest(phase=phase):
+                class FloodedPort(Wire):
+                    baudrate = 115200
+                    received = 0
+
+                    def flush(self):
+                        pass
+
+                    def read(self, count):
+                        self.received += 1
+                        if self.received > 1048576 + 20:
+                            raise AssertionError('log flood exceeded total response limit')
+                        return b'\n'
+
+                link = object.__new__(module.Link)
+                link.wire = FloodedPort(b'')
+                with patch.object(module.time, 'monotonic', new=lambda: 0), \
+                     patch.object(module.time, 'sleep'), patch.object(link, 'command'):
+                    with self.assertRaises(RuntimeError):
+                        if phase == 'switch':
+                            link.switch('helper rx file 1')
+                        else:
+                            link.restore()
+
+    def test_unrelated_complete_lines_cannot_restart_phase_timeout(self):
+        module = importlib.import_module('cm2012.serial_link')
+        for phase, budget in (('switch', 15), ('restore', 5)):
+            with self.subTest(phase=phase):
+                clock = [0.0]
+
+                class LoggingPort(Wire):
+                    baudrate = 115200
+
+                    def flush(self):
+                        pass
+
+                    def read(self, count):
+                        clock[0] += .25
+                        if clock[0] > budget + 1:
+                            raise AssertionError('complete log lines restarted the deadline')
+                        if not self.data:
+                            self.data.extend(b'log\n')
+                        return super().read(count)
+
+                link = object.__new__(module.Link)
+                link.wire = LoggingPort(b'')
+                with patch.object(module.time, 'monotonic', side_effect=lambda: clock[0]), \
+                     patch.object(module.time, 'sleep'), patch.object(link, 'command'):
+                    with self.assertRaises(TimeoutError):
+                        if phase == 'switch':
+                            link.switch('helper rx file 1')
+                        else:
+                            link.restore()
+                self.assertLessEqual(clock[0], budget + .25)
 
 
 if __name__ == '__main__':

@@ -122,21 +122,35 @@ class Link:
         self.wire.port = port
 
     def __enter__(self):
-        self.wire.open()
-        if hasattr(self.wire, 'set_buffer_size'):
-            self.wire.set_buffer_size(rx_size=65536, tx_size=65536)
-        self.wire.write(b'\r')
-        time.sleep(.15)
-        self.wire.reset_input_buffer()
+        try:
+            self.wire.open()
+            if hasattr(self.wire, 'set_buffer_size'):
+                self.wire.set_buffer_size(rx_size=65536, tx_size=65536)
+            self.wire.write(b'\r')
+            time.sleep(.15)
+            self.wire.reset_input_buffer()
+        except BaseException:
+            try:
+                self.wire.close()
+            except BaseException:
+                pass
+            raise
         return self
 
-    def __exit__(self, *_):
-        if self.wire.is_open:
-            if self.wire.baudrate != 115200:
-                self.wire.write(b'Q')
-                time.sleep(.3)
-                self.wire.baudrate = 115200
-            self.wire.close()
+    def __exit__(self, exc_type=None, exc_value=None, traceback=None):
+        try:
+            try:
+                if self.wire.is_open and self.wire.baudrate != 115200:
+                    try:
+                        self.wire.write(b'Q')
+                        time.sleep(.3)
+                    finally:
+                        self.wire.baudrate = 115200
+            finally:
+                self.wire.close()
+        except BaseException:
+            if exc_type is None:
+                raise
 
     def until(self, marker, timeout=15, limit=1048576):
         data, deadline = bytearray(), time.monotonic() + timeout
@@ -192,13 +206,25 @@ class Link:
         if not re.search(r'(?m)^' + re.escape(expected) + r'\s', output.replace('\r', '')):
             raise ValueError('盒子文件 SHA256 不一致')
 
+    def _until_line(self, marker, timeout):
+        deadline, remaining_bytes = time.monotonic() + timeout, 1048576
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError('串口控制响应超时')
+            part = self.until(b'\n', remaining, remaining_bytes)
+            remaining_bytes -= len(part)
+            if remaining_bytes < 0:
+                raise RuntimeError('串口控制响应过长')
+            if part.rstrip(b'\r\n') == marker:
+                return
+
     def switch(self, command):
         # 原厂无线日志也写串口；二进制传输期间禁止其混入帧确认。
         # 日志仍保留在 dmesg，RAM 重启入口会恢复所需控制台级别。
         self.command('dmesg -n 1')
         self.wire.write((command + '\r').encode())
-        while self.until(b'\n').rstrip(b'\r\n') != b'CM3_SWITCH':
-            pass
+        self._until_line(b'CM3_SWITCH', 15)
         self.wire.baudrate = 460800
         time.sleep(.15)
         self.wire.write(b'G')
@@ -207,8 +233,7 @@ class Link:
         self.wire.write(b'R')
         self.wire.flush()
         self.wire.baudrate = 115200
-        while self.until(b'\n', 5).rstrip(b'\r\n') != b'CM3_RESTORED':
-            pass
+        self._until_line(b'CM3_RESTORED', 5)
         # helper 先恢复 termios 再退出；等 ash 提示符，避免其初始化时清掉下一条命令。
         self.until(b'# ', 5)
 

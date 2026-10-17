@@ -3,7 +3,8 @@
 import { cursor } from 'uci';
 import { readfile } from 'fs';
 let root = ARGV[0];
-let lib = loadfile(root + '/cm2012-network-lib.uc')();
+if (!match(root,/^\/tmp\/cm2012-build-[a-z0-9]+(\/[a-z0-9-]+)?$/)) die('Isolated test directory required');
+let lib = loadfile((ARGV[1] || '/usr/libexec') + '/cm2012-network-lib.uc')();
 let route = {target:'192.168.60.0/24',gateway:'192.168.50.2',interface:'lan',metric:'10',enabled:'1'};
 let args = {eth_role:'lan',uplink:'wifi',allow_upstream:'1',routes_json:sprintf('%J',[route]),
  upstream_sources_json:'["192.168.1.0/24"]'};

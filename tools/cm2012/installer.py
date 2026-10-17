@@ -19,7 +19,7 @@ RAM_CHECKS = ('nand-readonly', 'hostapd-enabled', 'nat-rules', 'rpc-present',
 
 def retained_boot_layout(header, ram, expected_ram, stock_boot):
     from .archives import read_cpio_bytes
-    from .images import kernel_from
+    from .images import kernel_from, make_boot
     from .build import CMDLINE
     if (len(header) != 2048 or header[:8] != b'ANDROID!' or
             struct.unpack_from('<I', header, 36)[0] != 2048 or
@@ -36,6 +36,9 @@ def retained_boot_layout(header, ram, expected_ram, stock_boot):
         digest.update(data); digest.update(struct.pack('<I', len(data)))
     if header[576:608] != digest.digest().ljust(32, b'\0'):
         raise ValueError('保留 boot 的内容摘要不匹配')
+    # 用实际保留的压缩数据生成标准头，允许 gzip 元数据差异，但加载地址等必须一致。
+    if header != make_boot(stock_boot, ram, CMDLINE)[:2048]:
+        raise ValueError('保留 boot 的引导头与已验证入口不一致')
     def unpack(data):
         try:
             with gzip.GzipFile(fileobj=io.BytesIO(data)) as stream:

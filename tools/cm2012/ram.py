@@ -1,8 +1,5 @@
 """串口 BootROM/RAM 启动；修改只存在内存，不写 NAND。"""
 import asyncio
-import binascii
-import io
-from pathlib import Path
 import re
 import stat
 import struct
@@ -61,8 +58,8 @@ def prepare_reset(link):
     link.until(b'Emergency Remount complete', 20)
 
 
-async def bootrom_console(root, config, stock):
-    sys.path.insert(0, str(next((root / 'local/build/hiloot-source').iterdir())))
+async def bootrom_console(hiloot_root, config, stock):
+    sys.path.insert(0, str(hiloot_root))
     import serial
     import serial_asyncio
     from bootimg import BootParam, Memcpy
@@ -80,7 +77,7 @@ async def bootrom_console(root, config, stock):
     try:
         prepare_reset(link)
     except BaseException:
-        link.__exit__()
+        link.__exit__(*sys.exc_info())
         raise
     reader = asyncio.StreamReader(limit=131072)
     protocol = asyncio.StreamReaderProtocol(reader)
@@ -112,15 +109,6 @@ async def bootrom_console(root, config, stock):
     finally:
         writer.close()
         await asyncio.sleep(.1)
-
-
-def reset_to_rom(config):
-    with Link(config['port']) as link:
-        prepare_reset(link)
-        link.wire.send_break(.15)
-        link.wire.write(b'b')
-        # 后续仅由 BootROM 的单连接接管，不能再向新阶段发送 shell 命令。
-        link.wire.close()
 
 
 def enter_fast_load(wire, address):
@@ -249,16 +237,17 @@ def ram_test(root, config, stock, output, bootstrap=False, *, installation=False
     else:
         verify_output(output, config, stock)
         ram_path = output / 'ram.cpio.gz'
-        # hiloot 的完整原始源码由 prepare 锁定，再解包到专属构建目录。
-        from .resources import read_lock, verify_resource, extract_source
-        extract_source(verify_resource(root, read_lock(root)['hiloot-source']), root / 'local/build/hiloot-source')
+    # 两个 RAM 分支都从锁定原始源码准备 hiloot，不依赖编译的副作用。
+    from .resources import read_lock, verify_resource, extract_source
+    hiloot_root = extract_source(verify_resource(root, read_lock(root)['hiloot-source']),
+                                 root / 'local/build/hiloot-source', workspace=root / 'local/build')
     kernel = kernel_from(stock['boot'])
     validate_uimage(kernel)
     kernel_path = output / 'kernel.uImage'
     kernel_path.write_bytes(kernel)
     args = bootargs_for(config['profile']['total_bytes'], ram_path.stat().st_size, installation=installation)
     print('即将暂时中断热点并同步内部系统，再执行 RAM 启动', flush=True)
-    asyncio.run(bootrom_console(root, config, stock))
+    asyncio.run(bootrom_console(hiloot_root, config, stock))
     import serial
     wire = serial.Serial(None, 115200, timeout=.1, write_timeout=10)
     wire.dtr = wire.rts = False

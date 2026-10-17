@@ -98,6 +98,56 @@ class InstallerTests(unittest.TestCase):
         with self.assertRaises(ValueError): fn(header, ram, ram, stock['boot'])
         with self.assertRaises(ValueError): fn(boot[:2048], ram[:-1], ram, stock['boot'])
 
+    def test_retained_boot_rejects_header_mutations_even_with_valid_content_digest(self):
+        from cm2012.archives import Entry, cpio_bytes
+        from cm2012.images import make_boot, gz, kernel_from
+        from cm2012.build import CMDLINE
+        import hashlib
+        import stat
+        import struct
+        _, stock, _ = fixture()
+        ram = gz(cpio_bytes({'init': Entry(stat.S_IFREG | 0o755, b'checked init')}))
+        boot = make_boot(stock['boot'], ram, CMDLINE)
+        fn = self.module().retained_boot_layout
+        for name, offset in (('kernel_addr', 12), ('ramdisk_addr', 20),
+                             ('second_addr', 28), ('tags_addr', 32), ('unused', 44),
+                             ('board_name', 48), ('cmdline_padding', 575), ('padding', 608)):
+            with self.subTest(field=name):
+                header = bytearray(boot[:2048])
+                header[offset] ^= 1
+                digest = hashlib.sha1()
+                for data in (kernel_from(stock['boot']), ram, b''):
+                    digest.update(data)
+                    digest.update(struct.pack('<I', len(data)))
+                header[576:608] = digest.digest().ljust(32, b'\0')
+                with self.assertRaises(ValueError):
+                    fn(header, ram, ram, stock['boot'])
+
+    def test_retained_boot_accepts_gzip_metadata_and_standard_switch_root_link(self):
+        from cm2012.archives import Entry, cpio_bytes
+        from cm2012.images import make_boot, gz
+        from cm2012.build import CMDLINE
+        import gzip
+        import io
+        import stat
+        _, stock, _ = fixture()
+        entries = {'init': Entry(stat.S_IFREG | 0o755, b'checked init')}
+        expected_ram = gz(cpio_bytes(entries))
+        fn = self.module().retained_boot_layout
+        for extra_link in (False, True):
+            with self.subTest(extra_link=extra_link):
+                actual = dict(entries)
+                if extra_link:
+                    actual['bin/switch_root'] = Entry(stat.S_IFLNK | 0o777, b'busybox')
+                output = io.BytesIO()
+                with gzip.GzipFile(fileobj=output, mode='wb', filename='internal.cpio',
+                                   mtime=123456) as compressed:
+                    compressed.write(cpio_bytes(actual))
+                ram = output.getvalue()
+                self.assertNotEqual(ram, expected_ram)
+                boot = make_boot(stock['boot'], ram, CMDLINE)
+                self.assertEqual(fn(boot[:2048], ram, expected_ram, stock['boot']), len(boot))
+
 
 if __name__ == '__main__':
     unittest.main()
