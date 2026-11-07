@@ -1,0 +1,6 @@
+#!/bin/sh
+# 仅逐文件安装/撤销；不执行任何分区或原始 NAND 操作。
+set -eu
+umask 077
+base=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec ucode "$base/update.uc" "${1:-check}" "$base"

@@ -1,0 +1,7 @@
+{
+ "luci-app-cm2012-proxy": {
+  "description": "CM201-2 代理订阅与恢复",
+  "read": { "ubus": { "cm2012_proxy": ["status"] } },
+  "write": { "ubus": { "cm2012_proxy": ["save_subscription", "apply", "confirm", "rollback", "disable", "update_subscription"] } }
+ }
+}

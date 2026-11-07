@@ -2,6 +2,7 @@
 import re
 import stat
 from .archives import Entry
+from .template_files import load_templates, merge_files
 
 
 PROCD_LAUNCHER = b'''#!/bin/sh
@@ -164,9 +165,11 @@ config settings 'settings'
  option eth_role 'wan'
  option allow_upstream '0'
 """
-    return {name: data.encode() for name, data in (
+    result = {name: data.encode() for name, data in (
         ('etc/config/network', network), ('etc/config/dhcp', dhcp),
         ('etc/config/firewall', firewall), ('etc/config/cm2012', wifi))}
+    from .remote import configuration as remote_configuration
+    return merge_files(result, remote_configuration())
 
 
 def prepare_root(entries):
@@ -211,18 +214,15 @@ def prepare_root(entries):
 
 
 def runtime_files(root):
-    result = {}
-    for source, target in (
+    result = load_templates(root / 'configs/templates', [(source, target, 0o755) for source, target in (
         ('cm2012-ap', 'etc/init.d/cm2012-ap'),
         ('cm2012-wifi', 'usr/libexec/cm2012-wifi'),
         ('cm2012-network', 'usr/libexec/cm2012-network'),
         ('cm2012-network-guard', 'etc/init.d/cm2012-network-guard'),
         ('firewall', 'etc/init.d/firewall'),
-        ('sysntpd', 'etc/init.d/sysntpd')):
-        result[target] = Entry(stat.S_IFREG | 0o755,
-                              (root / 'configs/templates' / source).read_bytes().replace(b'\r\n', b'\n'))
+        ('sysntpd', 'etc/init.d/sysntpd'))])
     result['etc/hotplug.d/iface/20-firewall'] = Entry(stat.S_IFREG | 0o755,
-        b'#!/bin/sh\ncase "$ACTION" in ifup|ifupdate|ifdown) /sbin/fw3 reload ;; esac\n')
+        b'#!/bin/sh\ncase "$ACTION" in ifup|ifupdate|ifdown) /etc/init.d/firewall reload ;; esac\n')
     result['etc/rc.d/S18cm2012-network-guard'] = Entry(stat.S_IFLNK | 0o777,
         b'../init.d/cm2012-network-guard')
     result['usr/share/fw3/helpers.conf'] = Entry(stat.S_IFREG | 0o644,
@@ -230,7 +230,7 @@ def runtime_files(root):
     for name in ('iptables', 'iptables-save', 'iptables-restore', 'ip6tables',
                  'ip6tables-save', 'ip6tables-restore'):
         result['usr/sbin/' + name] = Entry(stat.S_IFLNK | 0o777, b'xtables-legacy-multi')
-    for source, target in (
+    result = merge_files(result, load_templates(root / 'configs/templates', [(source, target, 0o644) for source, target in (
         ('cm2012-wireless-lib.uc', 'usr/libexec/cm2012-wireless-lib.uc'),
         ('cm2012-network-lib.uc', 'usr/libexec/cm2012-network-lib.uc'),
         ('cm2012-network-restore.uc', 'usr/libexec/cm2012-network-restore.uc'),
@@ -238,7 +238,6 @@ def runtime_files(root):
         ('cm2012-rpc.uc', 'usr/share/rpcd/ucode/cm2012'),
         ('cm2012-acl.json', 'usr/share/rpcd/acl.d/luci-app-cm2012.json'),
         ('cm2012-menu.json', 'usr/share/luci/menu.d/luci-app-cm2012.json'),
-        ('cm2012-wireless.js', 'www/luci-static/resources/view/cm2012/wireless.js')):
-        result[target] = Entry(stat.S_IFREG | 0o644,
-                              (root / 'configs/templates' / source).read_bytes().replace(b'\r\n', b'\n'))
-    return result
+        ('cm2012-wireless.js', 'www/luci-static/resources/view/cm2012/wireless.js'))]))
+    from .remote import runtime_files as remote_files
+    return merge_files(result, remote_files(root))

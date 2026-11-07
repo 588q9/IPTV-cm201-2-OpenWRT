@@ -1,8 +1,11 @@
 #!/bin/sh /etc/rc.common
 START=19
 STOP=89
-start() { /sbin/fw3 start; }
+remote_reconcile() {
+ [ "${CM2012_PROXY_FIREWALL:-0}" = 1 ] || [ ! -x /usr/libexec/cm2012-remote ] || /usr/libexec/cm2012-remote reconcile
+}
+start() { /sbin/fw3 start && remote_reconcile; }
 stop() { /sbin/fw3 stop; }
-reload() { /sbin/fw3 reload; }
-restart() { /sbin/fw3 restart; }
+reload() { /sbin/fw3 reload && remote_reconcile; }
+restart() { /sbin/fw3 restart && remote_reconcile; }
 boot() { start; }

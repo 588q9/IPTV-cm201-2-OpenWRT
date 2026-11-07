@@ -8,7 +8,9 @@ import time
 import zlib
 
 from .archives import Entry, cpio_bytes
-from .build import CMDLINE, make_seed, verify_output
+from .images import CMDLINE
+from .rootfs import make_seed
+from .artifacts import verify_output
 from .compiler import compile_all
 from .images import gz, kernel_from, sha256
 from .layout import bootargs_map
@@ -268,7 +270,7 @@ def ram_test(root, config, stock, output, bootstrap=False, *, installation=False
         if wire.is_open:
             wire.close()
     if not bootstrap and not installation:
-        from .installer import record_ram_acceptance
+        from .acceptance import record_ram_acceptance
         record_ram_acceptance(config, output)
 
 

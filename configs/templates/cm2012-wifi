@@ -41,6 +41,7 @@ sta_channel() {
 host_pid=''; sta_pid=''
 cleanup() {
  rm -f "$state/ready" "$state/pending/ready"
+ [ ! -x /usr/libexec/cm2012-remote ] || /usr/libexec/cm2012-remote suspend || true
  [ -z "$host_pid" ] || kill "$host_pid" 2>/dev/null || true
  [ -z "$sta_pid" ] || kill "$sta_pid" 2>/dev/null || true
  ubus -t 3 call network.interface.lan remove_device '{"name":"ap0","link-ext":true}' >/dev/null 2>&1 || true

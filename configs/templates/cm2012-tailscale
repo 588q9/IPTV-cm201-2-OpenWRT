@@ -1,0 +1,43 @@
+#!/bin/sh
+# Root-only, fixed commands. Login prints the interactive URL only in this terminal.
+set -u
+lock=/tmp/cm2012-wifi/apply.lock
+action=${1:-status}
+case "$action" in status) exec /usr/bin/ucode /usr/libexec/cm2012-tailscale.uc status ;; esac
+# The root-only incremental installer already owns the shared writer lock.
+if [ "$action" = clear ] && [ "${CM2012_NETWORK_UPDATE_LOCK:-0}" = 1 ] && [ -d "$lock" ]; then
+ exec /usr/bin/ucode /usr/libexec/cm2012-tailscale.uc clear
+fi
+case "$action" in prepare|reconcile|suspend|clear|login) ;; *) echo 'usage: cm2012-tailscale status|reconcile|suspend|login' >&2; exit 2 ;; esac
+mkdir -p /tmp/cm2012-wifi || exit 1
+mkdir "$lock" 2>/dev/null || { echo '网络配置操作忙，请稍后重试。' >&2; exit 1; }
+trap 'rmdir "$lock" 2>/dev/null || true' EXIT HUP INT TERM
+if [ "$action" = login ]; then
+ /usr/bin/ucode /usr/libexec/cm2012-tailscale.uc check-login || exit 1
+ rmdir "$lock" || exit 1
+ trap - EXIT HUP INT TERM
+ # Do not publish any subnet during the potentially long interactive login.
+ /usr/sbin/tailscale --socket=/var/run/tailscale/tailscaled.sock up --accept-routes=false --accept-dns=false --netfilter-mode=off --advertise-exit-node=false --advertise-routes= --ssh=false --webclient=true || exit 1
+ exec /usr/libexec/cm2012-tailscale reconcile
+fi
+command=$action
+[ "$action" != reconcile ] || command=prepare
+if ! /usr/bin/ucode /usr/libexec/cm2012-tailscale.uc "$command"; then
+ # A failed preflight must not leave a daemon forwarding with stale topology.
+ rmdir "$lock" 2>/dev/null || true
+ trap - EXIT HUP INT TERM
+ [ "$action" = clear ] || /etc/init.d/cm2012-tailscale stop >/dev/null 2>&1
+ exit 1
+fi
+rmdir "$lock" || exit 1
+trap - EXIT HUP INT TERM
+case "$action" in
+ reconcile)
+  if [ -f /var/run/cm2012-tailscale/ready ]; then
+   if [ -f /var/run/cm2012-tailscale/restart-required ] || ! /etc/init.d/cm2012-tailscale running >/dev/null 2>&1; then
+    /etc/init.d/cm2012-tailscale restart || exit 1
+    rm -f /var/run/cm2012-tailscale/restart-required
+   fi
+  else /etc/init.d/cm2012-tailscale stop; fi ;;
+ suspend) /etc/init.d/cm2012-tailscale stop ;;
+esac

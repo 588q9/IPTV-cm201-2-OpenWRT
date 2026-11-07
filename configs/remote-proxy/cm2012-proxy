@@ -1,0 +1,46 @@
+#!/bin/sh
+set -eu
+umask 077
+state=/tmp/cm2012-proxy
+mkdir -p "$state"
+case "${1:-}" in
+ transaction|update)
+  # Independent guard owns the rollback deadline, even if this worker is killed.
+  action=$1
+  token=${2:-}
+  case "$token" in *[!a-f0-9-]*|'') exit 2 ;; esac
+  [ "${#token}" -eq 36 ] || exit 2
+  if [ "$action" = transaction ]; then journal=/etc/cm2012-proxy-transaction; else journal=$state/update; fi
+  [ "$(cat "$journal/token" 2>/dev/null)" = "$token" ] || exit 0
+  pidfile=$state/$action-$token.pid
+  printf '%s' "$$" > "$pidfile"
+  cleanup_worker() {
+   [ "$(cat "$pidfile" 2>/dev/null)" != "$$" ] || rm -f "$pidfile"
+   if [ "$(cat /tmp/cm2012-wifi/apply.lock/proxy-owner 2>/dev/null)" = "$token" ]; then
+    rm -f /tmp/cm2012-wifi/apply.lock/proxy-owner
+    rmdir /tmp/cm2012-wifi/apply.lock 2>/dev/null || true
+   fi
+  }
+  trap cleanup_worker EXIT
+  trap 'exit 143' HUP INT TERM
+  ucode /usr/libexec/cm2012-proxy-cli.uc "$action" "$token"
+  ;;
+ guard)
+  while :; do
+   read up rest < /proc/uptime
+   next=$(( ${up%%.*} + 5 ))
+   ucode /usr/libexec/cm2012-proxy-cli.uc guard || true
+   read up rest < /proc/uptime
+   remaining=$(( next - ${up%%.*} ))
+   [ "$remaining" -le 0 ] || sleep "$remaining"
+  done
+  ;;
+ recover) ucode /usr/libexec/cm2012-proxy-cli.uc recover ;;
+ suspend|reconcile)
+  [ "${CM2012_PROXY_FIREWALL:-0}" != 1 ] || exit 0
+  mkdir "$state/hook.lock" 2>/dev/null || exit 0
+  trap 'rmdir "$state/hook.lock" 2>/dev/null || true' EXIT HUP INT TERM
+  ucode /usr/libexec/cm2012-proxy-cli.uc "$1"
+  ;;
+ *) exit 2 ;;
+esac

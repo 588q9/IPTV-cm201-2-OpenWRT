@@ -8,6 +8,7 @@ import tempfile
 import json
 import gzip
 import struct
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 
@@ -56,12 +57,51 @@ class BuildTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             module.validate_root(entries)
 
-    def test_signed_index_version_is_not_an_apk_world_dependency(self):
+    def test_build_payload_uses_apk_content_identity_without_dead_version_list(self):
+        from cm2012.archives import Entry, read_tar_bytes
         module = self.module()
-        self.assertTrue(callable(getattr(module, 'locked_packages', None)))
-        locks = {'index': {'path': 'local/cache/apk/packages.adb', 'version': '2026-10-07'},
-                 'hostapd-basic': {'path': 'local/cache/apk/hostapd-basic.apk', 'version': '1.0-r4'}}
-        self.assertEqual(module.locked_packages(locks), ['hostapd-basic=1.0-r4'])
+        class PayloadCaptured(Exception):
+            pass
+        captured = {}
+        class Device:
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def command(self, command):
+                if command == 'df -k /tmp': return 'tmpfs 999999 0 999999 0% /tmp\n'
+                return ''
+            def upload(self, helper, target, data):
+                captured.update(read_tar_bytes(data))
+                raise PayloadCaptured
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'tools/cm2012/device').mkdir(parents=True)
+            (root / 'tools/cm2012/device/build-job').write_bytes(b'fixture')
+            feed = root / 'local/cache/apk/base'
+            feed.mkdir(parents=True)
+            locks = {}
+            for ident, filename, data in (('index', 'packages.adb', b'index'),
+                                           ('hostapd-basic', 'wifi.apk', b'package')):
+                (feed / filename).write_bytes(data)
+                from cm2012.images import sha256
+                locks[ident] = {'path': 'local/cache/apk/base/' + filename,
+                    'feed': 'base', 'version': '1.0-r4', 'size': len(data), 'sha256': sha256(data),
+                    'depends': [], 'apk_identity': '123456789abcdef0' * 4}
+            with (patch('cm2012.offline.forbid_network'),
+                  patch.object(module, 'compile_all', return_value={}),
+                  patch.object(module, 'make_seed', return_value={}),
+                  patch.object(module, 'make_overlay', return_value={}),
+                  patch.object(module, 'read_lock', return_value=locks),
+                  patch.object(module, 'check_device'), patch.object(module, 'active_snapshot'),
+                  patch('cm2012.ssh_link.SSHLink', return_value=Device()),
+                  patch.object(module, 'create_private_job') as private_job):
+                with self.assertRaises(PayloadCaptured):
+                    module.build(root, {}, {}, root / 'output', ssh_host='fixture')
+        private_job.assert_called_once()
+        self.assertRegex(private_job.call_args.args[1], r'^/tmp/cm2012-build-[a-z0-9]+$')
+        self.assertNotIn('packages.list', captured)
+        self.assertEqual(captured['apk-constraints.list'].data,
+                         b'hostapd-basic><X1123456789abcdef0123456789abcdef012345678\n')
+        self.assertIn('apk/base/packages.adb', captured)
 
     def test_service_account_check_accepts_locked_password_field(self):
         module = self.module()
@@ -173,8 +213,26 @@ class BuildTests(unittest.TestCase):
             binary = target / 'helper'
             binary.write_bytes(program)
             output = target / 'output'
+            # Assets merged on the host can introduce entirely new directories.
+            entries['usr/share/cm2012-new'] = Entry(stat.S_IFDIR | 0o750, uid=81, gid=101)
+            entries['usr/share/cm2012-new/nested'] = Entry(stat.S_IFDIR | 0o755, uid=81, gid=101)
+            entries['usr/share/cm2012-new/nested/asset'] = Entry(stat.S_IFREG | 0o755, b'asset', uid=81, gid=101)
+            entries['etc/shadow'] = Entry(stat.S_IFREG | 0o600, b'synthetic-shadow', uid=0, gid=0)
             manifest = module.assemble_outputs(Path(__file__).resolve().parents[1], {'profile': profile},
                 stock, {'cm2012-switch-root': binary}, entries, output)
+            archived = read_tar_bytes((output / 'rootfs.tar.gz').read_bytes())
+            from cm2012.archives import read_cpio_bytes
+            ram = read_cpio_bytes(gzip.decompress((output / 'ram.cpio.gz').read_bytes()))
+            for name in ('usr/share/cm2012-new', 'usr/share/cm2012-new/nested',
+                         'usr/share/cm2012-new/nested/asset', 'etc/shadow'):
+                self.assertEqual(archived[name], entries[name])
+                self.assertEqual(ram[name], entries[name])
+            bundle = read_tar_bytes((output / 'install-resources.tar.gz').read_bytes())
+            self.assertEqual(bundle['cm2012-install/rootfs.tar.gz'].data,
+                             (output / 'rootfs.tar.gz').read_bytes())
+            from cm2012.install_bundle import root_digest
+            self.assertEqual(bundle['cm2012-install/root-files.sha256'].data, root_digest(archived))
+            self.assertEqual(stat.S_IMODE(bundle['cm2012-install/rootfs.tar.gz'].mode), 0o600)
             self.assertIn('ram.cpio.gz', manifest['files'])
             self.assertNotIn('ram-boot.img', manifest['files'])
             self.assertFalse((output / 'ram-boot.img').exists())

@@ -1,0 +1,11 @@
+#!/bin/sh
+# LAN/firewall 生命周期的固定协调入口。不触发 STA/AP 整体重启。
+set -u
+case "${1:-}" in suspend|reconcile) ;; *) exit 2 ;; esac
+[ "${CM2012_PROXY_FIREWALL:-0}" != 1 ] || exit 0
+result=0
+for module in tailscale proxy; do
+ helper=/usr/libexec/cm2012-$module
+ [ ! -x "$helper" ] || "$helper" "$1" >/dev/null 2>&1 || result=1
+done
+exit "$result"

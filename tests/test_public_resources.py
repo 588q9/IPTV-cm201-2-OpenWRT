@@ -144,6 +144,40 @@ class ResourceTests(unittest.TestCase):
                 with self.subTest(path=path), self.assertRaises(ValueError):
                     module.resource_path(Path(directory), {'path': path})
 
+    def test_prepare_imports_verified_bundled_index_without_network(self):
+        import json
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundled = root / 'configs/resource-snapshots/base/packages.adb'
+            bundled.parent.mkdir(parents=True)
+            bundled.write_bytes(b'signed-index')
+            row = {'id': 'base-index', 'path': 'local/cache/base/packages.adb',
+                   'bundled_path': bundled.relative_to(root).as_posix(),
+                   'url': 'https://example.invalid/packages.adb', 'size': 12,
+                   'sha256': hashlib.sha256(b'signed-index').hexdigest()}
+            (root / 'resources.lock.json').write_text(json.dumps({'format': 1, 'resources': [row]}))
+            with patch('urllib.request.urlopen', side_effect=AssertionError('must stay offline')):
+                self.module().prepare(root)
+            self.assertEqual((root / row['path']).read_bytes(), b'signed-index')
+
+    def test_corrupt_bundled_index_fails_instead_of_online_fallback(self):
+        import json
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundled = root / 'configs/resource-snapshots/base/packages.adb'
+            bundled.parent.mkdir(parents=True)
+            bundled.write_bytes(b'changed-data')
+            row = {'id': 'base-index', 'path': 'local/cache/base/packages.adb',
+                   'bundled_path': bundled.relative_to(root).as_posix(),
+                   'url': 'https://example.invalid/packages.adb', 'size': 12,
+                   'sha256': hashlib.sha256(b'signed-index').hexdigest()}
+            (root / 'resources.lock.json').write_text(json.dumps({'format': 1, 'resources': [row]}))
+            with patch('urllib.request.urlopen', side_effect=AssertionError('no fallback')) as network, self.assertRaises(ValueError):
+                self.module().prepare(root)
+            network.assert_not_called()
+
     def test_source_extraction_rejects_symlink_parent_and_traversal(self):
         module = self.module()
         for kind, name, link in ((tarfile.REGTYPE, '../escape', ''),

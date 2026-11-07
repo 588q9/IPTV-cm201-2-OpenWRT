@@ -134,8 +134,8 @@ function rpcFixture(fail={}) {
  const originalLoad=c.load;c.load=p=>p!==fail.load && originalLoad(p);
  const plugin=new Function('readfile','open','mkdir','chmod','popen','lsdir','cursor','connect','loadfile',
  'system','type','length','index','match','trim','sprintf','split','die',rpcSource)(
- ()=> '12345678-1234-1234-1234-123456789abc',()=>({write:value=>value.length,close:()=>true}),()=>true,()=>true,
- ()=>null,()=>[],()=>c,()=>({call:()=>({})}),name=>()=>name.includes('network')?lib:{},
+ ()=> '12345678-1234-1234-1234-123456789abc',()=>({write:value=>value.length,close:()=>true}),p=>!(fail.lock && p.endsWith('apply.lock')),()=>true,
+ ()=>null,p=>fail.proxy_pending && p==='/etc/cm2012-proxy-transaction'?['prepared']:null,()=>c,()=>({call:()=>({})}),name=>()=>name.includes('network')?lib:{},
  command=>{commands.push(command);return command.includes(' abort')? (fail.abort?1:0):command.includes(' snapshot')?(fail.snapshot?1:0):0},
  v=>Array.isArray(v)?'array':typeof v,v=>v.length,(v,x)=>v.indexOf(x),(v,r)=>v.match(r),v=>v.trim(),
  (f,v)=>JSON.stringify(v),(v,s)=>v.split(s),message=>{throw Error(message)}).cm2012;
@@ -157,6 +157,13 @@ regression('RPC never claims restored when abort failed',()=>{
   const {plugin}=rpcFixture(fail),result=plugin.apply.call({args:rpcArgs});
   assert.ok(result.error);assert.ok(!/已恢复/.test(result.error),result.error);
   assert.match(result.error,/恢复失败|recovery failed/i);
+ }
+});
+regression('network apply refuses proxy transaction and shared writer lock',()=>{
+ for(const fail of [{proxy_pending:true},{lock:true}]) {
+  const {plugin,commands}=rpcFixture(fail);
+  assert.ok(plugin.apply.call({args:rpcArgs}).error);
+  assert.ok(!commands.some(c=>c.includes(' prepare')));
  }
 });
 const restoreSource=fs.readFileSync(path.join(__dirname,'../../configs/templates/cm2012-network-restore.uc'),'utf8')

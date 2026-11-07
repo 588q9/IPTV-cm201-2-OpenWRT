@@ -1,49 +1,56 @@
-# CM201-2 内置 OpenWrt 构建
+# CM201-2 内置 OpenWrt
 
-将已验证型号的 CM201-2 电视盒子用于 OpenWrt 热点，并整理可复现的 Windows + 盒子串口构建流程。
+为已验证的 CM201-2 电视盒子提供可复现的 Windows 构建、RAM 验收、内部 UBI/UBIFS 安装及网络扩展源码。正式系统运行在内部 NAND，不依赖 U 盘。
 
-项目从锁定的官方 OpenWrt 根系统、官方签名 APK 仓库和使用者自己的原厂资源组装系统。完整 OpenWrt 用户空间保存在盒子内部 NAND 的 UBI/UBIFS 中；正式运行无需 U 盘。
+本项目交付源码、模板、测试、固定资源清单和公开签名索引。使用者自行提供匹配设备的原厂资料，在本机生成系统；镜像包含本机配置和原厂参数，不作为公开发布附件。
 
-## 本分支：网络扩展
+## 功能与边界
 
-`codex/remote-networking` 基于 `main@4cb6fed`，集中保存 DDNS、Tailscale 异地组网和 Mihomo 透明代理的方案、实机评估与实验源码。`main` 继续维护刷 OpenWrt 与基础软件安装；网络扩展尚未接入固件构建或常驻服务。
+| 功能 | 入口与说明 |
+| --- | --- |
+| 内置系统构建、校验、RAM 验收与 userdata 重装 | [构建说明](docs/公开文档/构建说明.md)、[功能修复与重装](docs/公开文档/功能修复与重装.md) |
+| AP/无线中继、eth0 LAN/WAN 切换、静态路由与事务回滚 | [网口切换与静态路由](docs/公开文档/网口切换与静态路由.md) |
+| Cloudflare DDNS、Tailscale 子网访问、Mihomo/MetaCubeXD | [网络扩展实施与启用](docs/公开文档/CM2012网络扩展实施与启用.md)；三项服务默认停用，账户和订阅在设备本地填写 |
+| 节点 DNS 缓存恢复与主 DNS 故障切换 | [防复发实现与验证边界](docs/公开文档/节点DNS缓存防复发-20261102.md) |
+| 增量安装、来源校验与精确撤销 | `tools/project.py network-bundle` / `network-deploy`；不改分区，保留现有 UCI 配置 |
+| 项目结构、功能归属与验证入口 | [架构与功能索引](docs/公开文档/项目架构与功能索引.md) |
+| 凭据处理、公开检查和源码发布 | [源码发布与隐私](docs/公开文档/源码发布与隐私.md) |
 
-- [DDNS、异地访问与 LAN 自动分流方案](docs/公开文档/DDNS与异地访问及代理方案.md)：选型、Web 管理、实施步骤与恢复设计。
-- [Tailscale 双路由兼容性评估](docs/公开文档/Tailscale双路由兼容性评估.md)：CM201-2 与 SFT1200 的实测结果及未验收范围。
-- [历史评估源码与复核说明](tools/network-assessment/README.md)：本次现场实验代码、依赖、编译参数及执行边界。
+硬件范围为 Hi3798MV300、1 GiB LPDDR3、原厂 `3.18.24_hi3798mv2x` 内核和 MT7668。引导器、内核、NAND 几何均有校验。动态 NAND 容量适配不代表支持其他芯片、DDR、内核或无线驱动；SFT1200 不在本版支持范围内。
 
-## 当前状态
+## 开始使用
 
-功能修复版已完成两次离线构建，11 项产物及清单逐字节一致。同一最终产物先通过全部 NAND 只读的 RAM 验收，再仅重建 userdata，实际从内部 UBI/UBIFS 启动；mtd0–7 完整摘要保持不变。内部重启后配置、设备密钥和服务持久化正常，有线/无线联网、热点转发、LuCI 租约、SSH、HTTPS 和 NTP 已实测，用户最后确认内部系统手机验收通过。公开测试 73/73、含本机编译集成的完整测试 80/80 通过；详情及实测边界见 [验收记录](docs/公开文档/验收记录.md)。
+Windows x64、CPython 3.12、锁定的 Zig 0.13.0；构建工作机需有匹配内核的串口或已信任主机密钥的 SSH。原厂输入和恢复边界请先阅读 [构建说明](docs/公开文档/构建说明.md) 与 [恢复与限制](docs/公开文档/恢复与限制.md)。
 
-当前硬件范围为 Hi3798MV300、1GiB LPDDR3、原厂 `3.18.24_hi3798mv2x` 内核和 MT7668 无线。原厂引导器及内核版本有严格校验。动态适配 NAND 容量不代表支持其他芯片、DDR 参数、内核或无线驱动。
+```powershell
+py -3.12 tools/project.py prepare
+py -3.12 tools/project.py configure --stock-dir .\local\stock-original --port COM3
+py -3.12 tools/project.py check
+py -3.12 tools/project.py build --output .\output\current
+py -3.12 tools/project.py verify --output .\output\current
+```
 
-2026-10-13 新增无线中继时的 eth0 LAN/WAN 切换、IPv4 静态路由、指定上游网段互访及多配置回滚，见 [网口切换与静态路由](docs/公开文档/网口切换与静态路由.md)。当时采用源码与盒子运行时更新，没有重新打包镜像；下游 AP 终端验收由使用者后续完成。
+示例使用 Python Launcher；没有 Launcher 时替换为实际 Python 3.12 解释器。`prepare` 下载/导入固定资源；后续 build 使用本地缓存，Python 进程和设备 APK 均禁止联网。五份历史签名索引随源码保存，详见 [快照来源](configs/resource-snapshots/README.md)。其他旧资源仍可能需要可信 `--import-dir` 缓存，摘要变化会停止，不能自动替换为新版本。
 
-2026-10-17 的可靠性修正覆盖 Ubuntu CI 子进程取消、并发配置回滚、串口异常清理及构建缓存，验证入口与本轮证据见 [可靠性修正与验证](docs/公开文档/可靠性修正与验证.md)。历史安装和手机验收记录仍对应其原始产物，本轮新产物的验证范围单独记录。
+普通 build、verify 和 RAM 验收不会正式写入 NAND。`install` 继续要求显式 `--erase-internal-root` 和与当前产物匹配的验收凭据；执行前须完成自己的备份和设备核对。
 
-2026-10-18 整理 [DDNS、异地访问与 LAN 自动分流方案](docs/公开文档/DDNS与异地访问及代理方案.md)：采用 Cloudflare DDNS、Tailscale 子网路由与 Mihomo/MetaCubeXD，包含 GL-SFT1200 适配、旧内核验证门槛及回滚设计。该文档为待实施方案，不表示已安装或验收这些新增功能。
+## 验证与版本状态
 
-同日完成 [Tailscale 双路由兼容性评估](docs/公开文档/Tailscale双路由兼容性评估.md)：CM201-2 的官方 ARM 程序、隔离 TUN 与 daemon 初始化通过；SFT1200 的官方 MIPSLE 程序及独立 TUN 测试通过，正常 daemon 与资源适配仍待验证。两台均未登录或启用常驻服务。
+公共测试不依赖私人原厂备份或设备：
 
-## 工作方式
+```powershell
+py -3.12 -m unittest discover -s tests -p "test_public_*.py" -v
+py -3.12 tools/cm2012/publication.py --ref HEAD
+```
 
-Windows 使用 Python 3.12 和锁定的 Zig 0.13.0 处理资源与交叉编译；盒子通过串口在独立 RAM 目录运行原生 APK 工具。`prepare` 下载固定资源，之后的 `check`、`build` 和 `verify` 使用本地缓存。公开构建不读取历史私人 OpenWrt 根系统归档。
+CI 在 Windows/Ubuntu 使用 Python 3.12 与 Node 24.9.0。已准备锁定缓存后，可运行独立的离线交叉编译集成测试；实际命令和范围见 [源码发布与隐私](docs/公开文档/源码发布与隐私.md)。
 
-前 48MiB 保留固定大小的引导、启动镜像和必要硬件参数分区。`userdata` 从 48MiB 开始，占用实际物理 NAND 的全部剩余容量；坏块和 UBI 预留在该分区内部管理。文件系统可用空间会小于分区的物理长度。
+本次源码预发布包含更新包信任与链接边界、DDNS 凭据参数/诊断保护、私密作业目录、模块解耦和公开内容检查。HTTPS 管理策略按使用者要求暂缓，本版保持现有行为。代码回归不等同于完整业务验收：规则集合全量准备、DDNS 真实更新、Tailscale 登录/蜂窝访问、重启恢复和长期负载仍按各自实测记录判断。
 
-统一入口为 [tools/project.py](tools/project.py)。命令说明、原厂输入清单及验收步骤见 [构建说明](docs/公开文档/构建说明.md)，恢复边界和无线限制见 [恢复与限制](docs/公开文档/恢复与限制.md)。新增网络/无线修复与显式 userdata 重装入口见 [功能修复与重装](docs/公开文档/功能修复与重装.md)；构建、校验和 RAM 测试仍不自动写入 NAND。
+历史设备验收、运行修复及证据日期保留在 [版本与验收记录](docs/公开文档/版本与验收记录.md)，不将旧产物结果归到本次重构后的源码上。[实施设计](docs/superpowers/specs/2026-11-01-release-readiness-design.md) 与 [实施计划](docs/superpowers/plans/2026-11-01-release-readiness.md) 记录本轮边界。
 
-## 仓库内容
+## 本机数据与许可证
 
-- `tools/cm2012/`：资源校验、原厂档案、镜像组装、串口和隔离构建。
-- `configs/templates/`：不含实机密码的热点模板。
-- `resources.lock.json`：资源版本、URL、大小与 SHA256。
-- `tests/test_public_*.py`：公开测试；不以私人备份作为纯测试输入。
-- `docs/公开文档/`：中文使用和恢复说明。
+`local/`、`output/`、备份、下载缓存和现场日志被 Git 忽略。root hash、订阅、API 密钥及含有这些信息的归档仍是敏感数据，不能因为目录被忽略或密码已哈希就公开分享。
 
-`local/`、`output/`、旧备份、下载缓存、调试日志及编译产物保留在本机并被 Git 忽略。镜像、原厂硬件参数、密码、设备密钥和串口原始日志不得加入公开提交。使用者自行创建 GitHub 仓库并上传本地代码；本项目不会自动创建远程仓库或推送。
-
-## 许可证
-
-原创代码采用 [MIT](LICENSE)。第三方源码、补丁、工具和系统包保留各自许可证，详见 [第三方说明](THIRD_PARTY.md)。原厂引导器、内核、模块、固件和设备参数由使用者自行只读导出，不随代码仓库分发。
+原创代码采用 [MIT](LICENSE)。第三方代码、补丁、公开索引和固定软件包的来源与许可见 [THIRD_PARTY](THIRD_PARTY.md)。本仓库不分发原厂引导器、内核、模块、固件和设备参数，也不把第三方资源重新许可为 MIT。

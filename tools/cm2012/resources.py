@@ -45,6 +45,13 @@ def read_lock(root):
         raise ValueError('资源标识重复')
     for item in items:
         resource_path(root, item)
+        if 'bundled_path' in item:
+            bundled = item['bundled_path']
+            if (not isinstance(bundled, str) or
+                    not bundled.startswith('configs/resource-snapshots/') or
+                    PurePosixPath(bundled).name != 'packages.adb'):
+                raise ValueError('公开资源快照路径无效')
+            resource_path(root, {**item, 'path': bundled})
         if len(item['sha256']) != 64 or not item['url'].startswith('https://'):
             raise ValueError('资源锁字段不完整')
     return {item['id']: item for item in items}
@@ -60,7 +67,11 @@ def prepare(root, import_directory=None):
         destination.parent.mkdir(parents=True, exist_ok=True)
         partial = destination.with_name(destination.name + '.part')
         imported = False
-        if import_directory:
+        if item.get('bundled_path'):
+            source = verify_resource(root, {**item, 'path': item['bundled_path']})
+            shutil.copyfile(source, partial)
+            imported = True
+        if import_directory and not imported:
             candidates = import_directory.rglob(destination.name)
             for candidate in candidates:
                 if candidate.stat().st_size == item['size'] and file_sha(candidate) == item['sha256']:
@@ -83,6 +94,18 @@ def safe_name(raw):
     if path.is_absolute() or '..' in path.parts or ':' in raw or '\\' in raw:
         raise ValueError('归档路径越界：' + raw)
     return str(path)
+
+
+def source_archive_root(archive):
+    """唯一源码顶层目录；供头文件、许可读取使用同一个来源规则。"""
+    roots = set()
+    for member in archive.getmembers():
+        name = PurePosixPath(safe_name(member.name))
+        if name.parts:
+            roots.add(name.parts[0])
+    if len(roots) != 1:
+        raise ValueError('源码归档必须包含唯一顶层目录')
+    return roots.pop()
 
 
 def checked_directory(destination, workspace=None):

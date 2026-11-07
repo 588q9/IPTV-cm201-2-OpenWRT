@@ -1,0 +1,20 @@
+[
+  {"name":"usr/bin/tool", "target":"other", "allowed":true},
+  {"name":"usr/lib/libexample.so", "target":"libexample.so.1", "allowed":true},
+  {"name":"etc/rc.d/S90example", "target":"../init.d/example", "allowed":true},
+  {"name":"etc/ssl/certs/hash.0", "target":"/etc/ssl/cert.pem", "allowed":true},
+  {"name":"etc/ssl/certs/988a38cb.0", "target":"NetLock_Arany_=Class_Gold=_Főtanúsítvány.crt", "allowed":true},
+  {"name":"etc/cm2012-proxy/Country.mmdb", "target":"/usr/share/cm2012/geodata/Country.mmdb", "allowed":true},
+  {"name":"www/leak", "target":"/usr/share/cm2012/geodata/Country.mmdb", "allowed":false},
+  {"name":"usr/bin/leak", "target":"/etc/shadow", "allowed":false},
+  {"name":"usr/bin/leak", "target":"/etc/config/network", "allowed":false},
+  {"name":"usr/bin/leak", "target":"/lib/apk/db/installed", "allowed":false},
+  {"name":"usr/bin/leak", "target":"/lib/modules/module.ko", "allowed":false},
+  {"name":"usr/bin/leak", "target":"/lib/firmware/private", "allowed":false},
+  {"name":"usr/bin/leak", "target":"/www/index.html", "allowed":false},
+  {"name":"usr/bin/leak", "target":"../../../../etc/shadow", "allowed":false},
+  {"name":"usr/bin/leak", "target":"bad\nname", "allowed":false},
+  {"name":"etc/config/leak", "target":"/usr/bin/tool", "allowed":false},
+  {"name":"usr//bin/leak", "target":"/usr/bin/tool", "allowed":false},
+  {"name":"etc/cm2012-proxy/Country.mmdb", "target":"/etc/shadow", "allowed":false}
+]

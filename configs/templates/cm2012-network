@@ -31,7 +31,11 @@ restore() {
  done
  sync
 }
-finish() { rm -rf "$journal" "$state/pending" || return 1; sync; }
+finish() {
+ rm -rf "$journal" "$state/pending" || return 1
+ sync || return 1
+ [ ! -x /usr/libexec/cm2012-remote ] || /usr/libexec/cm2012-remote reconcile || return 1
+}
 snapshot() {
  mkdir "$journal/applied" || return 1
  for name in cm2012 network dhcp firewall; do cp -p "$config_dir/$name" "$journal/applied/$name" || return 1; done
@@ -69,6 +73,7 @@ recover() {
  fi
 }
 reload_network() {
+ [ ! -x /usr/libexec/cm2012-remote ] || /usr/libexec/cm2012-remote suspend || return 1
  # Stop STA/AP before changing bridge membership on the vendor driver.
  /etc/init.d/cm2012-ap stop || return 1
  ifdown lan || return 1

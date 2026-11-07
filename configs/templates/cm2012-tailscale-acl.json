@@ -1,0 +1,7 @@
+{
+ "luci-app-cm2012-tailscale": {
+  "description": "CM201-2 Tailscale 子网服务",
+  "read": { "ubus": { "cm2012_tailscale": ["status"] } },
+  "write": { "ubus": { "cm2012_tailscale": ["apply"] } }
+ }
+}

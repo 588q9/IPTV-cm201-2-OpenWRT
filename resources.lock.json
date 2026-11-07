@@ -34,6 +34,14 @@
       "sha256": "c1d853bc4adf83bcabd2792fc95af33bdd8643c97e8f7b3f0180af36af76f0e5"
     },
     {
+      "id": "curl-source",
+      "version": "8.22.0",
+      "path": "local/cache/curl-8.22.0.tar.xz",
+      "url": "https://curl.se/download/curl-8.22.0.tar.xz",
+      "size": 2953092,
+      "sha256": "f7ef3ae8a22e521f289803fe93543eb64c329b58aa73a9e224dfd915a2a5f4f7"
+    },
+    {
       "id": "zig",
       "version": "0.13.0",
       "path": "local/cache/zig-windows-0.13.0.zip",
@@ -52,74 +60,417 @@
     {
       "id": "openwrt-base-index",
       "version": "25.12.5-2026-10-11",
-      "path": "local/cache/apk/packages.adb",
+      "path": "local/cache/apk/base-20261011/packages.adb",
       "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/packages.adb",
       "size": 110335,
-      "sha256": "382d024b8ed979e0349eaa5f6a2bfbbfe885f49ee9af786a37ee0dc64e7158b9"
+      "sha256": "382d024b8ed979e0349eaa5f6a2bfbbfe885f49ee9af786a37ee0dc64e7158b9",
+      "feed": "base-20261011",
+      "bundled_path": "configs/resource-snapshots/base-20261011/packages.adb"
     },
     {
       "id": "hostapd-basic",
       "version": "2025.08.26~ca266cc2-r5",
-      "path": "local/cache/apk/hostapd-basic-2025.08.26~ca266cc2-r5.apk",
+      "path": "local/cache/apk/base-20261011/hostapd-basic-2025.08.26~ca266cc2-r5.apk",
       "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/hostapd-basic-2025.08.26~ca266cc2-r5.apk",
       "size": 329740,
-      "sha256": "d20e53159a489600dcbd8e689b1240fb136a907a2902f163bfe491e35a9835e4"
+      "sha256": "d20e53159a489600dcbd8e689b1240fb136a907a2902f163bfe491e35a9835e4",
+      "feed": "base-20261011",
+      "depends": [
+        {
+          "name": "hostapd-common",
+          "version": "2025.08.26~ca266cc2-r5",
+          "match": 0
+        },
+        {
+          "name": "libblobmsg-json20260213",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libnl-tiny1",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libubus20251202",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libucode20230711",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libudebug",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ucode",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ucode-mod-fs",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ucode-mod-nl80211",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ucode-mod-rtnl",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ucode-mod-ubus",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ucode-mod-uloop",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "hostapd",
+          "version": "2025.08.26~ca266cc2-r5",
+          "match": 0
+        },
+        {
+          "name": "hostapd-basic-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "BSD-3-Clause",
+      "apk_identity": "9db8601c9c8529bd4b4864424a129f8ba758eaa62b659880a50ca09a85821954"
     },
     {
       "id": "hostapd-common",
       "version": "2025.08.26~ca266cc2-r5",
-      "path": "local/cache/apk/hostapd-common-2025.08.26~ca266cc2-r5.apk",
+      "path": "local/cache/apk/base-20261011/hostapd-common-2025.08.26~ca266cc2-r5.apk",
       "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/hostapd-common-2025.08.26~ca266cc2-r5.apk",
       "size": 1730,
-      "sha256": "12abae07e7508b5f0477553ef99de636f9b4bced18124b9d21383cd40bdc01b6"
+      "sha256": "12abae07e7508b5f0477553ef99de636f9b4bced18124b9d21383cd40bdc01b6",
+      "feed": "base-20261011",
+      "depends": [
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "hostapd-common-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "BSD-3-Clause",
+      "apk_identity": "a7ac1207103952d897187384785c5fc7651d43d9394dad0576628c78b675e665"
     },
     {
       "id": "wpa-supplicant-basic",
       "version": "2025.08.26~ca266cc2-r5",
-      "path": "local/cache/apk/wpa-supplicant-basic-2025.08.26~ca266cc2-r5.apk",
+      "path": "local/cache/apk/base-20261011/wpa-supplicant-basic-2025.08.26~ca266cc2-r5.apk",
       "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/wpa-supplicant-basic-2025.08.26~ca266cc2-r5.apk",
       "size": 284589,
-      "sha256": "e65703868a9f34049383ae27cff58582107eb27b5510d293eb50f9ed97d36f4e"
+      "sha256": "e65703868a9f34049383ae27cff58582107eb27b5510d293eb50f9ed97d36f4e",
+      "feed": "base-20261011",
+      "depends": [
+        {
+          "name": "hostapd-common",
+          "version": "2025.08.26~ca266cc2-r5",
+          "match": 0
+        },
+        {
+          "name": "libblobmsg-json20260213",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libnl-tiny1",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libubus20251202",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libucode20230711",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libudebug",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ucode",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ucode-mod-fs",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ucode-mod-nl80211",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ucode-mod-rtnl",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ucode-mod-ubus",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ucode-mod-uloop",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "wpa-supplicant",
+          "version": "2025.08.26~ca266cc2-r5",
+          "match": 0
+        },
+        {
+          "name": "wpa-supplicant-basic-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "BSD-3-Clause",
+      "apk_identity": "6a6944c93a6d79cf7acf7f1d15891fc54e9eb011bafdde0267c2dc6d2a043f41"
     },
     {
       "id": "iw",
       "version": "6.17-r1",
-      "path": "local/cache/apk/iw-6.17-r1.apk",
+      "path": "local/cache/apk/base-20261011/iw-6.17-r1.apk",
       "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/iw-6.17-r1.apk",
       "size": 52273,
-      "sha256": "98340db4cc3d49f032ef4ad2bedb92ab3b29d73806d0626148a5fd7e0cb8ba0b"
+      "sha256": "98340db4cc3d49f032ef4ad2bedb92ab3b29d73806d0626148a5fd7e0cb8ba0b",
+      "feed": "base-20261011",
+      "depends": [
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libnl-tiny1",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "iw-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "GPL-2.0",
+      "apk_identity": "963faa031c994288e38457845126effe50ecc98035a787ffc9696296278a53bf"
     },
     {
       "id": "ucode-mod-digest",
       "version": "2026.01.16~85922056-r2",
-      "path": "local/cache/apk/ucode-mod-digest-2026.01.16~85922056-r2.apk",
+      "path": "local/cache/apk/base-20261011/ucode-mod-digest-2026.01.16~85922056-r2.apk",
       "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/ucode-mod-digest-2026.01.16~85922056-r2.apk",
       "size": 15923,
-      "sha256": "5b064d6ec587777a48a35419616e2b94bcd3d88056dd9b5d18d039d6439c5fbd"
+      "sha256": "5b064d6ec587777a48a35419616e2b94bcd3d88056dd9b5d18d039d6439c5fbd",
+      "feed": "base-20261011",
+      "depends": [
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ucode",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "ucode-mod-digest-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "ISC",
+      "apk_identity": "856853597c0d77a49c83d11d99f20bc691c131b6f26803eaad995949136aaa57"
     },
     {
       "id": "ucode-mod-nl80211",
       "version": "2026.01.16~85922056-r2",
-      "path": "local/cache/apk/ucode-mod-nl80211-2026.01.16~85922056-r2.apk",
+      "path": "local/cache/apk/base-20261011/ucode-mod-nl80211-2026.01.16~85922056-r2.apk",
       "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/ucode-mod-nl80211-2026.01.16~85922056-r2.apk",
       "size": 21465,
-      "sha256": "4226d0fb7e15cfb301c4c3447598ba03404c48a5589e42bbb8ce41f1fd4b27d3"
+      "sha256": "4226d0fb7e15cfb301c4c3447598ba03404c48a5589e42bbb8ce41f1fd4b27d3",
+      "feed": "base-20261011",
+      "depends": [
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libnl-tiny1",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libubox20260213",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ucode",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "ucode-mod-nl80211-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "ISC",
+      "apk_identity": "de8369da11566cf3d43ae3dc37918ff9f9318fad5c9e72c81e3fd477d5036fff"
     },
     {
       "id": "ucode-mod-rtnl",
       "version": "2026.01.16~85922056-r2",
-      "path": "local/cache/apk/ucode-mod-rtnl-2026.01.16~85922056-r2.apk",
+      "path": "local/cache/apk/base-20261011/ucode-mod-rtnl-2026.01.16~85922056-r2.apk",
       "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/ucode-mod-rtnl-2026.01.16~85922056-r2.apk",
       "size": 27733,
-      "sha256": "4404c9f081a8ba4b8f14ba0998345c7e67d85c62af06f95e0fd0470fa786c1e5"
+      "sha256": "4404c9f081a8ba4b8f14ba0998345c7e67d85c62af06f95e0fd0470fa786c1e5",
+      "feed": "base-20261011",
+      "depends": [
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libnl-tiny1",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libubox20260213",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ucode",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "ucode-mod-rtnl-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "ISC",
+      "apk_identity": "1444b52242ccfe88e3a266482d4ba65df21a90352b8b8ab28bb674a13807e611"
     },
     {
       "id": "wifi-scripts",
       "version": "1.0-r1",
-      "path": "local/cache/apk/wifi-scripts-1.0-r1.apk",
+      "path": "local/cache/apk/base-20261011/wifi-scripts-1.0-r1.apk",
       "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/wifi-scripts-1.0-r1.apk",
       "size": 70390,
-      "sha256": "ef0c31034ce755ecb9aeecd7bcb94b380f8f1cb842e8bc11401e39576a92c7c9"
+      "sha256": "ef0c31034ce755ecb9aeecd7bcb94b380f8f1cb842e8bc11401e39576a92c7c9",
+      "feed": "base-20261011",
+      "depends": [
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "netifd",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ucode",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ucode-mod-digest",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ucode-mod-nl80211",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ucode-mod-rtnl",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ucode-mod-ubus",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ucode-mod-uci",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "wifi-scripts-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "GPL-2.0",
+      "apk_identity": "40074b978062d4762145b436fe8c4f8f2240be2ce8e9a7e6f6ccc407a686d5e6"
     },
     {
       "id": "pyserial",
@@ -192,6 +543,848 @@
       "path": "local/cache/iptables-1.8.8.tar.bz2",
       "size": 746985,
       "sha256": "71c75889dc710676631553eb1511da0177bbaaf1b551265b912d236c3f51859f"
+    },
+    {
+      "id": "openwrt-base-index-20261018",
+      "version": "25.12.5-2026-10-18",
+      "path": "local/cache/apk/base/packages.adb",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/packages.adb",
+      "size": 110343,
+      "sha256": "0fd570f89b95b92585ec55024b25f01430cbe8d6962a9291a6d8291691e72e6f",
+      "feed": "base",
+      "bundled_path": "configs/resource-snapshots/base/packages.adb"
+    },
+    {
+      "id": "openwrt-packages-index-20261018",
+      "version": "25.12.5-2026-10-18",
+      "path": "local/cache/apk/packages/packages.adb",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/packages/packages.adb",
+      "size": 741652,
+      "sha256": "1c8e3346c2ba22e2005d8265e8ed0ba1b3ceb4c1f67c71daa9b9391348764e0a",
+      "feed": "packages",
+      "bundled_path": "configs/resource-snapshots/packages/packages.adb"
+    },
+    {
+      "id": "openwrt-luci-index-20261018",
+      "version": "25.12.5-2026-10-18",
+      "path": "local/cache/apk/luci/packages.adb",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/luci/packages.adb",
+      "size": 382757,
+      "sha256": "a8d63ad5f5c38e096c3c546c0e91c779935f63e8a7bd256e804d89cd2a08829b",
+      "feed": "luci",
+      "bundled_path": "configs/resource-snapshots/luci/packages.adb"
+    },
+    {
+      "id": "openwrt-target-index-20261018",
+      "version": "25.12.5-2026-10-18",
+      "path": "local/cache/apk/target/packages.adb",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/targets/armsr/armv7/packages/packages.adb",
+      "size": 13929,
+      "sha256": "e45dc3f69a3cc346a6bd1c03644c13f47cdd3408fe7247787ec7d52fe02a1aff",
+      "feed": "target",
+      "bundled_path": "configs/resource-snapshots/target/packages.adb"
+    },
+    {
+      "id": "ddns-scripts",
+      "version": "2.8.4-r8",
+      "path": "local/cache/apk/packages/ddns-scripts-2.8.4-r8.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/packages/ddns-scripts-2.8.4-r8.apk",
+      "size": 23685,
+      "sha256": "17714cb2cdf8b9a9d15698060f82578ecf37e0445d522f6f86b4667e41ab4ed5",
+      "feed": "packages",
+      "depends": [
+        {
+          "name": "ddns-scripts-services",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ip",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "resolveip",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "ddns-scripts-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "GPL-2.0",
+      "apk_identity": "f0741653e97aaa15bb032bbfa9d30353e37668b43c3ed7c25f073e17b7263476"
+    },
+    {
+      "id": "ddns-scripts-cloudflare",
+      "version": "2.8.4-r8",
+      "path": "local/cache/apk/packages/ddns-scripts-cloudflare-2.8.4-r8.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/packages/ddns-scripts-cloudflare-2.8.4-r8.apk",
+      "size": 4614,
+      "sha256": "be80efd6cd6afd6ee721befc5127efca7552c0f1961123bf3d19b6774a9382ed",
+      "feed": "packages",
+      "depends": [
+        {
+          "name": "curl",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ddns-scripts",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "ddns-scripts-cloudflare-any",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ddns-scripts_cloudflare.com-v4",
+          "version": "2.8.4-r8",
+          "match": 0
+        }
+      ],
+      "license": "GPL-2.0",
+      "apk_identity": "ddb90d811ac30b537619477213f158b80ff35e3beaeac55abba7bf5b97efe314"
+    },
+    {
+      "id": "luci-app-ddns",
+      "version": "26.288.56989~75a306d",
+      "path": "local/cache/apk/luci/luci-app-ddns-26.288.56989~75a306d.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/luci/luci-app-ddns-26.288.56989~75a306d.apk",
+      "size": 13328,
+      "sha256": "af47a9ddde4c3180016c3a3bf84559d72371fceece584b90f112342a74f54920",
+      "feed": "luci",
+      "depends": [
+        {
+          "name": "ddns-scripts",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "luci-base",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "luci-app-ddns-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "Apache-2.0",
+      "apk_identity": "fa4e51a921b296c43289d18af3673318cbde262d2c752e18763a449490686f96"
+    },
+    {
+      "id": "curl",
+      "version": "8.22.0-r1",
+      "path": "local/cache/apk/packages/curl-8.22.0-r1.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/packages/curl-8.22.0-r1.apk",
+      "size": 72103,
+      "sha256": "15469a1e4853e5a89de0a8d57732ddbefb34731e03e997f7b2db2fd41adf9c34",
+      "feed": "packages",
+      "depends": [
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libcurl4",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "curl-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "MIT",
+      "apk_identity": "998d3c8ac617c8e10491f29e119a7c4950c1824a40d7c95c243afe6a67c3fbdd"
+    },
+    {
+      "id": "ca-bundle",
+      "version": "20260816-r1",
+      "path": "local/cache/apk/base/ca-bundle-20260816-r1.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/ca-bundle-20260816-r1.apk",
+      "size": 107337,
+      "sha256": "22f49453c235d2caefe6859bf797a96bfcd874b1f43df6ee45dc6a48a37e57d3",
+      "feed": "base",
+      "depends": [
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "ca-bundle-any",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ca-certificates-any",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ca-certs",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "GPL-2.0-or-later MPL-2.0",
+      "apk_identity": "c9da5dce8954b214e8690964565c6be3a549c71694ad9c288ee8d10abe8dd948"
+    },
+    {
+      "id": "ca-certificates",
+      "version": "20260816-r1",
+      "path": "local/cache/apk/base/ca-certificates-20260816-r1.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/ca-certificates-20260816-r1.apk",
+      "size": 121118,
+      "sha256": "39fad049a18013cf0bdc5ce58b8f39685ffd118b5de1af376ca99ff2c456921c",
+      "feed": "base",
+      "depends": [
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "ca-certificates-any",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ca-certs",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "GPL-2.0-or-later MPL-2.0",
+      "apk_identity": "71fa50ff0b7506fa2f644cffbcf6bcb5d47187361ad738e0a7d1fe639192f95e"
+    },
+    {
+      "id": "openssl-util",
+      "version": "3.5.9-r1",
+      "path": "local/cache/apk/base/openssl-util-3.5.9-r1.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/openssl-util-3.5.9-r1.apk",
+      "size": 352853,
+      "sha256": "75a808841155eee7d625a171ca5c89bcd0c0144549a23b97637ec7a93b07837a",
+      "feed": "base",
+      "depends": [
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libopenssl-conf",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libopenssl3",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "openssl-util-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "Apache-2.0",
+      "apk_identity": "f9a15f4b814577e7009d5f23a759787793277e13e3061bfbc970f1053f95ae53"
+    },
+    {
+      "id": "ip-full",
+      "version": "6.18.0-r2",
+      "path": "local/cache/apk/base/ip-full-6.18.0-r2.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/ip-full-6.18.0-r2.apk",
+      "size": 225105,
+      "sha256": "e5e4d335b51087d60b5b0daa79c920c06d05492f2f3d0a917f30ae25bd7ab792",
+      "feed": "base",
+      "depends": [
+        {
+          "name": "libbpf1",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libmnl0",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libnl-tiny1",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "ip",
+          "version": "6.18.0-r2",
+          "match": 0
+        },
+        {
+          "name": "ip-full-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "GPL-2.0",
+      "apk_identity": "592156b913c19850ea0a6dec9b8bfaccd9ebd1cb1d82df249103bff526c3a41c"
+    },
+    {
+      "id": "ddns-scripts-services",
+      "version": "2.8.4-r8",
+      "path": "local/cache/apk/packages/ddns-scripts-services-2.8.4-r8.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/packages/ddns-scripts-services-2.8.4-r8.apk",
+      "size": 6839,
+      "sha256": "5784c527d69b18e904f866c7b53a26d656912cc67cff267bcd2b4b495c1e884c",
+      "feed": "packages",
+      "depends": [
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "ddns-scripts-services-any",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "ddns-scripts_service",
+          "version": "2.8.4-r8",
+          "match": 0
+        }
+      ],
+      "license": "GPL-2.0",
+      "apk_identity": "e7eb823c2ba1fdafef84a5c45015b55ff97e45594e79f403838dbcf8ddd05daf"
+    },
+    {
+      "id": "resolveip",
+      "version": "2",
+      "path": "local/cache/apk/base/resolveip-2.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/resolveip-2.apk",
+      "size": 2243,
+      "sha256": "e8b52749071aa5a967e12c7262eb929ab97ea2437bf7e41e4ae0c4b0aa78ff39",
+      "feed": "base",
+      "depends": [
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "resolveip-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "GPL-2.0",
+      "apk_identity": "c037f1512755895c378a959e15e7993c33c62e3cd33d5c775001004d1d190053"
+    },
+    {
+      "id": "libcurl4",
+      "version": "8.22.0-r1",
+      "path": "local/cache/apk/packages/libcurl4-8.22.0-r1.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/packages/libcurl4-8.22.0-r1.apk",
+      "size": 234472,
+      "sha256": "32d3e56cb884a20297aa081419e6964e42d003d997c4c38b675ca609c22ecb13",
+      "feed": "packages",
+      "depends": [
+        {
+          "name": "ca-bundle",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libmbedtls21",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libnghttp2-14",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "zlib",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "libcurl",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libcurl-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "MIT",
+      "apk_identity": "3e69e8b1c9b24635be0655b459ef49945c0a6c4c89dfca1077b6b23eea6bcdb9"
+    },
+    {
+      "id": "libopenssl-conf",
+      "version": "3.5.9-r1",
+      "path": "local/cache/apk/base/libopenssl-conf-3.5.9-r1.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/libopenssl-conf-3.5.9-r1.apk",
+      "size": 6570,
+      "sha256": "2385e6cfa2298c96cfa592a2460070548f552c0e5d3ade2583d703ce391cb3e5",
+      "feed": "base",
+      "depends": [
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libopenssl3",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "libopenssl-conf-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "Apache-2.0",
+      "apk_identity": "a12846235bbad1281d7c467579e50d884c1ee0b81c46f7c2ef001b50bb4de9c1"
+    },
+    {
+      "id": "libopenssl3",
+      "version": "3.5.9-r1",
+      "path": "local/cache/apk/base/libopenssl3-3.5.9-r1.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/libopenssl3-3.5.9-r1.apk",
+      "size": 1832735,
+      "sha256": "73fad5b1a2590c543167844c8adbb50e932a902014b61addf40a8dd929df8985",
+      "feed": "base",
+      "depends": [
+        {
+          "name": "libatomic1",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "libopenssl",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libopenssl-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "Apache-2.0",
+      "apk_identity": "6da29d23641b6bfae8a33e1e0af3edf6cc6ae97d76fca4a123963b399f685c9d"
+    },
+    {
+      "id": "libbpf1",
+      "version": "1.6.2-r1",
+      "path": "local/cache/apk/base/libbpf1-1.6.2-r1.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/libbpf1-1.6.2-r1.apk",
+      "size": 148556,
+      "sha256": "3ab113f6d0a911c8b0bf7f13fa919739861732da1f90270623875fbac88d7375",
+      "feed": "base",
+      "depends": [
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libelf1",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "libbpf",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libbpf-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "LGPL-2.1 OR BSD-2-Clause",
+      "apk_identity": "8004fb3ed772c29f8293defc7c9faf454cf0d18a0bd525af8b67bd416caf74c9"
+    },
+    {
+      "id": "libnghttp2-14",
+      "version": "1.70.0-r1",
+      "path": "local/cache/apk/packages/libnghttp2-14-1.70.0-r1.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/packages/libnghttp2-14-1.70.0-r1.apk",
+      "size": 61050,
+      "sha256": "3c297cd76e2594a13bfd049aa02972c19db29303e05e262da527dd2174bdaa02",
+      "feed": "packages",
+      "depends": [
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "libnghttp2",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libnghttp2-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "MIT",
+      "apk_identity": "2b7595f47ae26c0de54e9642da430ddc1265b09a2a246a87862ff9a6d687d21d"
+    },
+    {
+      "id": "libatomic1",
+      "version": "14.3.0-r5",
+      "path": "local/cache/apk/target/libatomic1-14.3.0-r5.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/targets/armsr/armv7/packages/libatomic1-14.3.0-r5.apk",
+      "size": 5619,
+      "sha256": "b98e9d462ec0e050112d00b1e72199d9181ff045cb4396db343b119960f657f7",
+      "feed": "target",
+      "depends": [
+        {
+          "name": "libgcc1",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "libatomic",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libatomic-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "GPL-3.0-with-GCC-exception",
+      "apk_identity": "269c9b3c79059cae3459de4ec804adec0b59b14aeaa8787c834d59c28f0d92bf"
+    },
+    {
+      "id": "libelf1",
+      "version": "0.192-r1",
+      "path": "local/cache/apk/base/libelf1-0.192-r1.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/libelf1-0.192-r1.apk",
+      "size": 39723,
+      "sha256": "1bc6f8a1d304596ada33717350c4c2448f77bda56093f402e465552081fa2017",
+      "feed": "base",
+      "depends": [
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "zlib",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "libelf",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libelf-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "GPL-2.0-or-later OR LGPL-3.0-or-later",
+      "apk_identity": "081505a5d52af5973d8f8692d1c18dccc7275d89953a83851fd3a4b2e58ca7af"
+    },
+    {
+      "id": "drill",
+      "version": "1.8.3-r1",
+      "path": "local/cache/apk/packages/drill-1.8.3-r1.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/packages/drill-1.8.3-r1.apk",
+      "size": 24198,
+      "sha256": "f34e91589a76ca7f9cc205c03953edd40aa056e5ac9ddb825976af3c14a63ad5",
+      "feed": "packages",
+      "depends": [
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libldns",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libopenssl3",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "drill-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "BSD-3-Clause",
+      "apk_identity": "836b044c2f58e8f969c87444ed8e685d393e22f90582442206d2edf135a8e132"
+    },
+    {
+      "id": "libldns",
+      "version": "1.8.3-r1",
+      "path": "local/cache/apk/packages/libldns-1.8.3-r1.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/packages/libldns-1.8.3-r1.apk",
+      "size": 132984,
+      "sha256": "8356a7f4c792e3ed04684042454caeb945610c730d7cb15179971222268c9792",
+      "feed": "packages",
+      "depends": [
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libopenssl3",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "libldns-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "BSD-3-Clause",
+      "apk_identity": "108aad8cc4b785e7a86dc44c9603cf31f4cf7c6bffa8fa2f529be54b96aeeb9c"
+    },
+    {
+      "id": "tailscale-arm",
+      "version": "1.104.1",
+      "path": "local/cache/tailscale_1.104.1_arm.tgz",
+      "url": "https://pkgs.tailscale.com/stable/tailscale_1.104.1_arm.tgz",
+      "size": 36919681,
+      "sha256": "aea7ae225989d302444b10b44aa42e89fdfa2a691b4d124ed710b4753518a875",
+      "architecture": "arm",
+      "license": "BSD-3-Clause",
+      "checksum_url": "https://pkgs.tailscale.com/stable/tailscale_1.104.1_arm.tgz.sha256"
+    },
+    {
+      "id": "mihomo-armv7",
+      "version": "v1.19.32",
+      "path": "local/cache/mihomo-linux-armv7-v1.19.32.gz",
+      "url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.32/mihomo-linux-armv7-v1.19.32.gz",
+      "size": 21167899,
+      "sha256": "f622cbe903ba1a11d30e9071d1c5373929c675b854856ff3e7f977255a25bb66",
+      "architecture": "armv7",
+      "license": "GPL-3.0"
+    },
+    {
+      "id": "geoip-country-dbip",
+      "version": "2026-10",
+      "path": "local/cache/geodata/dbip-country-lite-2026-10.mmdb.gz",
+      "url": "https://download.db-ip.com/free/dbip-country-lite-2026-10.mmdb.gz",
+      "size": 4123384,
+      "sha256": "4cd44536ddfd40fec7eca94a233f7d19f38d470e6522e653cb8d27001f5fe177",
+      "uncompressed_size": 8348509,
+      "uncompressed_sha256": "dbd70ccfa2a13627eaf4913d19920a1a229f1b3c5439ac01c509995b6364202a",
+      "license": "CC-BY-4.0",
+      "source_url": "https://db-ip.com/db/download/ip-to-country-lite"
+    },
+    {
+      "id": "yq-arm",
+      "version": "v4.44.3",
+      "path": "local/cache/yq_linux_arm_v4.44.3",
+      "url": "https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_arm",
+      "size": 9699480,
+      "sha256": "a77ed60766057c721e081aa686e10e9d76597da46650c26908b220b67c75525a",
+      "architecture": "arm",
+      "license": "MIT",
+      "checksum_url": "https://github.com/mikefarah/yq/releases/download/v4.44.3/checksums"
+    },
+    {
+      "id": "metacubexd-static",
+      "version": "28a9589f6239bbafc24e87bbf5e5b4997fe42e59",
+      "path": "local/cache/metacubexd-28a9589f6239bbafc24e87bbf5e5b4997fe42e59.tar.gz",
+      "url": "https://codeload.github.com/MetaCubeX/metacubexd/tar.gz/28a9589f6239bbafc24e87bbf5e5b4997fe42e59",
+      "size": 2536065,
+      "sha256": "335c0cd44190bf341bf1491e442fdf7e84af6e14e0dbedf613122f9a68e583ab",
+      "source_commit": "8bbc8f58fef71148a94fb5c0ff808f79b057337d",
+      "release": "v1.273.1",
+      "license": "MIT"
+    },
+    {
+      "id": "tailscale-license",
+      "version": "v1.104.1",
+      "path": "local/cache/tailscale-LICENSE-v1.104.1",
+      "url": "https://raw.githubusercontent.com/tailscale/tailscale/v1.104.1/LICENSE",
+      "size": 1515,
+      "sha256": "a7ca6186a7963a0a60740f6047760eecd7a0234e8c38bd7e1e0bbcb324bda45b"
+    },
+    {
+      "id": "mihomo-license",
+      "version": "v1.19.32",
+      "path": "local/cache/mihomo-LICENSE-v1.19.32",
+      "url": "https://raw.githubusercontent.com/MetaCubeX/mihomo/v1.19.32/LICENSE",
+      "size": 35149,
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+    },
+    {
+      "id": "yq-license",
+      "version": "v4.44.3",
+      "path": "local/cache/yq-LICENSE-v4.44.3",
+      "url": "https://raw.githubusercontent.com/mikefarah/yq/v4.44.3/LICENSE",
+      "size": 1077,
+      "sha256": "697db34dabb21562fe84487a2ccd031fbd45382b89c2cbdec8ef31682c486040"
+    },
+    {
+      "id": "metacubexd-license",
+      "version": "8bbc8f58fef71148a94fb5c0ff808f79b057337d",
+      "path": "local/cache/metacubexd-LICENSE-8bbc8f58fef71148a94fb5c0ff808f79b057337d",
+      "url": "https://raw.githubusercontent.com/MetaCubeX/metacubexd/8bbc8f58fef71148a94fb5c0ff808f79b057337d/LICENSE",
+      "size": 1096,
+      "sha256": "cd0735ba06f26a0008bbca399890c7ca87fe129aacc302c2e33fb03e60a4e8c3"
+    },
+    {
+      "id": "coreutils",
+      "version": "9.9-r2",
+      "path": "local/cache/apk/packages/coreutils-9.9-r2.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/packages/coreutils-9.9-r2.apk",
+      "size": 767,
+      "sha256": "c94c999a11a82eb0ab3d721292a80ac52bc0300aeb9e3117f0a2b0d749aeebb3",
+      "feed": "packages",
+      "depends": [
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "coreutils-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "GPL-3.0-or-later",
+      "apk_identity": "09c58c99cd5570eda2aeab93d162a7e25e95f454712e23ac1e44ffa2102aea42"
+    },
+    {
+      "id": "coreutils-timeout",
+      "version": "9.9-r2",
+      "path": "local/cache/apk/packages/coreutils-timeout-9.9-r2.apk",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/packages/coreutils-timeout-9.9-r2.apk",
+      "size": 16837,
+      "sha256": "9876a1572467e2d9c13369eb7a7a958f1f5243f1428ac6db973eb8037a303f2a",
+      "feed": "packages",
+      "depends": [
+        {
+          "name": "coreutils",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "libc",
+          "version": "",
+          "match": 0
+        },
+        {
+          "name": "librt",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "provides": [
+        {
+          "name": "coreutils-timeout-any",
+          "version": "",
+          "match": 0
+        }
+      ],
+      "license": "GPL-3.0-or-later",
+      "apk_identity": "a74434243d985793e25e55803a0860f83d89be25c164d420b9628b48ba3863fb"
     }
   ]
 }
