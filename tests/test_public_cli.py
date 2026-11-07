@@ -38,7 +38,7 @@ class CliTests(unittest.TestCase):
 
     def test_verify_uses_stock_and_outputs_without_resource_cache_or_serial(self):
         with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
+            root = Path(folder).resolve()
             entry = self.entry()
             entry.ROOT = root
             config, stock = {'profile': {'total_bytes': 8589934592}}, {'boot': b'stock'}
