@@ -7,6 +7,7 @@ const pending = '/tmp/cm2012-wifi/pending';
 const wireless = loadfile('/usr/libexec/cm2012-wireless-lib.uc')();
 const network = loadfile('/usr/libexec/cm2012-network-lib.uc')();
 const journal = '/etc/cm2012-transaction';
+const writer_lock = '/tmp/cm2012-wifi/apply.lock';
 function write(path, value) {
  let f = open(path, 'w', 0600);
  if (!f) die('无法写入事务文件');
@@ -104,11 +105,17 @@ return { cm2012: {
    return { error: '参数无效：SSID 最多 32 字节，WPA2 密码 8–63 字节，禁止控制字符。' };
   // 每次申请独占锁；拒绝覆盖尚未确认的事务。
   mkdir('/tmp/cm2012-wifi', 0700);
-  if (!mkdir(pending, 0700)) return { error: '已有设置等待确认或回滚' };
+  if (!mkdir(writer_lock,0700)) return {error:'网络配置操作忙，请稍后重试。'};
+  // 与代理、Tailscale 共用短锁；持久事务建立后由 journal/pending 接管互斥。
+  if (lsdir('/etc/cm2012-proxy-transaction') != null || lsdir(journal) != null || !mkdir(pending,0700)) {
+   system('rmdir /tmp/cm2012-wifi/apply.lock');
+   return {error:'已有网络或代理设置等待确认或恢复。'};
+  }
   let token = trim(readfile('/proc/sys/kernel/random/uuid'));
   if (!match(token, /^[a-f0-9-]{36}$/) || system('/usr/libexec/cm2012-network prepare ' + token) != 0) {
-   system('rm -rf /tmp/cm2012-wifi/pending'); return { error: '无法备份配置，未应用更改。' };
+   system('rm -rf /tmp/cm2012-wifi/pending; rmdir /tmp/cm2012-wifi/apply.lock'); return { error: '无法备份配置，未应用更改。' };
   }
+  if (system('rmdir /tmp/cm2012-wifi/apply.lock') != 0) return abort_error('无法释放配置写入锁。');
   let rendered = network.configure(c,cfg);
   if (rendered.error) return abort_error(rendered.error);
   try {

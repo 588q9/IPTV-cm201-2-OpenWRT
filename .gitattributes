@@ -2,6 +2,10 @@
 *.py text eol=lf
 *.md text eol=lf
 *.json text eol=lf
+configs/resource-snapshots/*/packages.adb -text
+tests/fixtures/ddns-2.8.4-r8/*.sh whitespace=-blank-at-eol,-space-before-tab,-blank-at-eof
+# 保留历史评估清单的原始 CRLF 字节，便于与本地证据逐字节核对。
+tools/network-assessment/archives.json -text whitespace=cr-at-eol
 *.yml text eol=lf
 *.c text eol=lf
 *.patch text eol=lf

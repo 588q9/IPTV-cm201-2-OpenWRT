@@ -1,0 +1,7 @@
+{
+ "admin/services/cm2012-tailscale": {
+  "title": "CM201-2 异地访问", "order": 61,
+  "action": { "type": "view", "path": "cm2012/tailscale" },
+  "depends": { "acl": ["luci-app-cm2012-tailscale"] }
+ }
+}

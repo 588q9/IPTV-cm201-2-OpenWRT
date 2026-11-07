@@ -65,7 +65,7 @@ class InstallerTests(unittest.TestCase):
 
     def test_install_never_enters_write_ram_without_flag_and_complete_receipt(self):
         module = self.module()
-        with patch('cm2012.ram.ram_test') as boot, patch('cm2012.build.verify_output'):
+        with patch('cm2012.ram.ram_test') as boot, patch('cm2012.artifacts.verify_output'):
             with self.assertRaises(ValueError):
                 module.install(None, {}, {}, None)
             with tempfile.TemporaryDirectory() as folder:
@@ -77,6 +77,72 @@ class InstallerTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     module.install(None, {}, {}, output, erase_internal_root=True)
             boot.assert_not_called()
+
+    def test_complete_install_launch_fits_actual_serial_control_line_budget(self):
+        from cm2012 import serial_link
+        from cm2012.archives import Entry, tar_bytes
+        import re
+        import shutil
+        import stat
+        import subprocess
+        from types import SimpleNamespace
+        module = self.module()
+        actual_command = serial_link.Link.command
+        class Wire:
+            def __init__(self): self.sent = bytearray()
+            def write(self, data):
+                self.sent.extend(data)
+                return len(data)
+        class Device:
+            def __init__(self): self.wire = Wire()
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def upload(self, *args): pass
+            def command(self, text, timeout=15):
+                if 'CM2012_ERASE_INTERNAL_ROOT' in text:
+                    return actual_command(self, text, timeout)
+                return '0\n'
+            def until(self, marker, timeout):
+                if marker == b'\n':
+                    token = re.search(rb'CM_DONE_[a-z0-9]+', self.wire.sent).group()
+                    return token + b'=0\n'
+                return b'# '
+        probe, install_device = Device(), Device()
+        retained_size, retained_sha = 12582912, 'a' * 64
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            (output / 'manifest.json').write_bytes(b'{}')
+            (output / 'ram-acceptance.json').write_text(json.dumps({
+                'manifest_sha256': module.sha256(b'{}'), 'checks': list(module.RAM_CHECKS)}))
+            (output / 'rootfs.tar.gz').write_bytes(tar_bytes({
+                'usr/libexec/cm2012-serial-transfer': Entry(stat.S_IFREG | 0o755, b'fixture')}))
+            (output / 'install-resources.tar.gz').write_bytes(b'fixture-bundle')
+            with (patch('cm2012.artifacts.verify_output'),
+                  patch('cm2012.serial_link.Link', side_effect=[probe, install_device]),
+                  patch.object(module, 'create_private_job') as private_job,
+                  patch.object(module, 'upload_helper'),
+                  patch.object(module, 'inspect_retained_boot', return_value=(retained_size, retained_sha)),
+                  patch('cm2012.ram.ram_test') as ram_test,
+                  patch('cm2012.ram.restore_internal') as restore,
+                  patch.object(module.uuid, 'uuid4', return_value=SimpleNamespace(hex='b' * 32)),
+                  patch.object(serial_link.time, 'sleep')):
+                module.install(Path('fixture-root'), {'port': 'COM-test'}, {}, output,
+                               erase_internal_root=True)
+            self.assertEqual(private_job.call_count, 2)
+            ram_test.assert_called_once_with(Path('fixture-root'), {'port': 'COM-test'}, {},
+                                            output, installation=True)
+            restore.assert_called_once_with({'port': 'COM-test'})
+        control = bytes(install_device.wire.sent)
+        self.assertTrue(control.startswith(b'\x15'))
+        self.assertTrue(control.endswith(b'\r'))
+        line = control[1:-1]
+        self.assertLessEqual(len(line), 500, 'budget includes the real completion marker')
+        self.assertIn(f'CM2012_ERASE_INTERNAL_ROOT {retained_size} {retained_sha}'.encode(), line)
+        self.assertIn(b'CM_DONE_', line)
+        shell = shutil.which('sh')
+        self.assertIsNotNone(shell, 'POSIX shell required for launcher syntax verification')
+        result = subprocess.run([shell, '-n', '-c', line.decode()], capture_output=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
 
     def test_retained_boot_must_have_the_exact_verified_internal_entry(self):
         from cm2012.archives import Entry, cpio_bytes

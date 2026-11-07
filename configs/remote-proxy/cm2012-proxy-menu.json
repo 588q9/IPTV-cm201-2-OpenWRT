@@ -1,0 +1,7 @@
+{
+ "admin/services/cm2012_proxy": {
+  "title": "CM201-2 代理", "order": 50,
+  "action": { "type": "view", "path": "cm2012/proxy" },
+  "depends": { "acl": ["luci-app-cm2012-proxy"] }
+ }
+}

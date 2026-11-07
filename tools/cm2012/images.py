@@ -8,6 +8,9 @@ import struct
 from .layout import MIB, layout_for
 
 
+CMDLINE = 'mem=1G mmz=ddr,0,0,48M vmalloc=500M console=ttyAMA0,115200 lpj=974848 loglevel=7 init=/init '
+
+
 def sha256(data):
     return hashlib.sha256(data).hexdigest()
 

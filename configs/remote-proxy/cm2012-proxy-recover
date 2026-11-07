@@ -1,0 +1,9 @@
+#!/bin/sh /etc/rc.common
+START=17
+start() {
+ # An unconfirmed change is restored before network guard / netifd start.
+ until /usr/libexec/cm2012-proxy recover; do
+  logger -t cm2012-proxy 'Recovery failed; retained journal requires repair'
+  sleep 5
+ done
+}

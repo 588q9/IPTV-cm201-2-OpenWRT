@@ -50,7 +50,7 @@ def compile_legacy(root, resources, official, ubus, headers, linklibs, common, r
                 data = text.encode()
             (ipt / mapped[name]).write_bytes(data)
     uci = work / 'uci-headers'
-    from .compiler import apply_patch
+    from .patching import apply_patch
     xtables_source = ipt / 'libxtables/xtables.c'
     xtables_source.write_text(apply_patch(xtables_source.read_text(encoding='utf-8'),
         (root / 'tools/cm2012/patches/iptables-register-reset.patch').read_text(encoding='utf-8')),
@@ -122,7 +122,7 @@ def compile_legacy(root, resources, official, ubus, headers, linklibs, common, r
         shared[:3] + ['libc.so', '-o', str(output / 'libxtables.so.12')], cwd=linklibs)
     # fw3 使用当前官方根的 libuci/libubus/libubox，不混入旧版本运行库。
     from restore_elf_link_sections import restore
-    from .build import resolve_file
+    from .rootfs import resolve_file
     libs = []
     for source in ('lib/libuci.so.20250120', 'lib/libubus.so.20251202', 'lib/libgcc_s.so.1'):
         entry = resolve_file(official, source)

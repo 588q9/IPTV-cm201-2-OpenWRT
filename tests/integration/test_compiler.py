@@ -22,6 +22,7 @@ class CompilerIntegration(unittest.TestCase):
         self.assertEqual(set(binaries), {
             'ubusd', 'cm2012-switch-root', 'serial-transfer',
             'cm2012-net-probe', 'cm2012-wpa-control', 'cm2012-netlink-compat.so',
+            'cm2012-proxy-fetch',
             'xtables-legacy-multi', 'libxtables.so.12', 'fw3',
             'mtdinfo', 'ubinfo', 'ubiformat', 'ubiattach', 'ubidetach',
             'ubimkvol', 'nandwrite', 'flash_erase'})
@@ -36,8 +37,9 @@ class CompilerIntegration(unittest.TestCase):
                     self.assertTrue(info['has_dynamic'])
                     self.assertIsNone(info['interpreter'])
                     self.assertEqual(info['needed'], ('libc.so',))
-                elif name in ('ubusd', 'fw3'):
-                    expected = compiler.UBUSD_NEEDED if name == 'ubusd' else compiler.FW3_NEEDED
+                elif name in ('ubusd', 'fw3', 'cm2012-proxy-fetch'):
+                    expected = (compiler.UBUSD_NEEDED if name == 'ubusd' else compiler.FW3_NEEDED
+                                if name == 'fw3' else ('libc.so',))
                     compiler.elf_check(path, static=False, expected_needed=expected)
                 else:
                     compiler.elf_check(path, static=True, expected_needed=())

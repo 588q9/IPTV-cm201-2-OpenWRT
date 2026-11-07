@@ -18,10 +18,13 @@ STOCK_FILES = {'fastboot': 'mtd0-data.bin', 'boot': 'mtd14-data.bin',
                'misc': 'original-misc-data.bin.gz', 'swdevinfo': 'original-swdevinfo-data.bin.gz'}
 
 
-def activate_dependencies(root):
+def activate_dependencies(root, *, names=None):
     destination = root / 'local/python-deps'
-    for name, item in read_lock(root).items():
-        if item['path'].endswith('.whl'):
+    locks = read_lock(root)
+    if names is not None and any(name not in locks or not locks[name]['path'].endswith('.whl') for name in names):
+        raise ValueError('锁定资源缺少所需 Python 运行依赖')
+    for name, item in locks.items():
+        if item['path'].endswith('.whl') and (names is None or name in names):
             extract_zip(verify_resource(root, item), destination)
     if str(destination) not in sys.path:
         sys.path.insert(0, str(destination))
@@ -74,7 +77,7 @@ def configure(root, stock_directory, ssid, ap_password, root_password, port='COM
     directory.mkdir(exist_ok=True)
     target = directory / 'config.json'
     config = json.loads(target.read_text(encoding='utf-8')) if target.exists() else {}
-    activate_dependencies(root)
+    activate_dependencies(root, names=('passlib',))
     from passlib.hash import sha512_crypt
     old_hash = config.get('root_hash')
     root_hash = old_hash if old_hash and sha512_crypt.verify(root_password, old_hash) else sha512_crypt.hash(root_password)
@@ -88,10 +91,14 @@ def configure(root, stock_directory, ssid, ap_password, root_password, port='COM
     return config
 
 
-def load_config(root):
+def load_settings(root):
     config = json.loads((root / 'local/config.json').read_text(encoding='utf-8'))
     if config['format'] != 1:
         raise ValueError('本地配置格式不支持')
+    return config
+
+
+def load_stock(config):
     stock = {name: Path(path).read_bytes() for name, path in config['stock_paths'].items()}
     for name, data in stock.items():
         if sha256(data) != config['profile'][name + '_sha256']:
@@ -100,4 +107,9 @@ def load_config(root):
         raise ValueError('原厂版本不兼容')
     if total_from_ptable(stock['ptable']) != config['profile']['total_bytes']:
         raise ValueError('原厂表容量与档案不符')
-    return config, stock
+    return stock
+
+
+def load_config(root):
+    config = load_settings(root)
+    return config, load_stock(config)

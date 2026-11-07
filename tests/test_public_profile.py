@@ -5,6 +5,9 @@ from pathlib import Path
 import struct
 import sys
 import unittest
+import tempfile
+import json
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 
@@ -15,6 +18,40 @@ class ProfileTests(unittest.TestCase):
             return importlib.import_module('cm2012.profile')
         except ModuleNotFoundError:
             self.fail('原厂档案接口尚未实现')
+
+    def test_settings_load_does_not_require_stock_files_but_full_load_does(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'local').mkdir()
+            expected = {'format': 1, 'port': 'COM-test',
+                        'stock_paths': {'boot': str(root / 'missing-stock')}}
+            (root / 'local/config.json').write_text(json.dumps(expected))
+            self.assertEqual(module.load_settings(root), expected)
+            with self.assertRaises(FileNotFoundError):
+                module.load_config(root)
+
+    def test_serial_activation_does_not_validate_unrelated_wheels(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            serial = {'path': 'local/cache/serial.whl'}
+            unrelated = {'path': 'local/cache/missing-passlib.whl'}
+            with (patch.object(module, 'read_lock', return_value={'pyserial': serial, 'passlib': unrelated}),
+                  patch.object(module, 'verify_resource', return_value=root / serial['path']) as verify,
+                  patch.object(module, 'extract_zip') as extract,
+                  patch.object(sys, 'path', sys.path.copy())):
+                module.activate_dependencies(root, names=('pyserial',))
+            verify.assert_called_once_with(root, serial)
+            extract.assert_called_once_with(root / serial['path'], root / 'local/python-deps')
+
+    def test_missing_requested_runtime_dependency_is_rejected(self):
+        module = self.module()
+        with (patch.object(module, 'read_lock', return_value={'passlib': {'path': 'missing.whl'}}),
+              patch.object(module, 'verify_resource') as verify):
+            with self.assertRaises(ValueError):
+                module.activate_dependencies(Path('fixture'), names=('pyserial',))
+        verify.assert_not_called()
 
     def test_physical_capacity_64bit_and_geometry(self):
         module = self.module()

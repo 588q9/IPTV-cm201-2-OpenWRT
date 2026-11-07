@@ -1,5 +1,7 @@
 name: 纯测试
-on: [push, pull_request, workflow_dispatch]
+on: [push, pull_request, workflow_dispatch, workflow_call]
+permissions:
+  contents: read
 jobs:
   tests:
     strategy:
@@ -19,4 +21,9 @@ jobs:
           node-version: '24.9.0'
       - run: node tests/fixtures/cm2012-ui.cjs
       - run: node tests/fixtures/cm2012-network.cjs
+      - run: node tests/fixtures/cm2012-tailscale.cjs
+      - run: node tests/fixtures/cm2012-proxy.cjs
+      - run: node tests/fixtures/cm2012-proxy-ui.cjs
+      - run: node tests/fixtures/cm2012-update.cjs
       - run: python -m unittest discover -s tests -p "test_public_*.py" -v
+      - run: python tools/cm2012/publication.py --ref HEAD

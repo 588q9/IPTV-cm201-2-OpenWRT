@@ -1,0 +1,51 @@
+{
+  "format": 1,
+  "purpose": "Unmodified public signed OpenWrt feed metadata, preserved by locked identity; no device package database or private configuration.",
+  "snapshots": [
+    {
+      "id": "openwrt-base-index",
+      "feed": "base-20261011",
+      "version": "25.12.5-2026-10-11",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/packages.adb",
+      "size": 110335,
+      "sha256": "382d024b8ed979e0349eaa5f6a2bfbbfe885f49ee9af786a37ee0dc64e7158b9",
+      "bundled_path": "configs/resource-snapshots/base-20261011/packages.adb"
+    },
+    {
+      "id": "openwrt-base-index-20261018",
+      "feed": "base",
+      "version": "25.12.5-2026-10-18",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/base/packages.adb",
+      "size": 110343,
+      "sha256": "0fd570f89b95b92585ec55024b25f01430cbe8d6962a9291a6d8291691e72e6f",
+      "bundled_path": "configs/resource-snapshots/base/packages.adb"
+    },
+    {
+      "id": "openwrt-packages-index-20261018",
+      "feed": "packages",
+      "version": "25.12.5-2026-10-18",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/packages/packages.adb",
+      "size": 741652,
+      "sha256": "1c8e3346c2ba22e2005d8265e8ed0ba1b3ceb4c1f67c71daa9b9391348764e0a",
+      "bundled_path": "configs/resource-snapshots/packages/packages.adb"
+    },
+    {
+      "id": "openwrt-luci-index-20261018",
+      "feed": "luci",
+      "version": "25.12.5-2026-10-18",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/packages/arm_cortex-a15_neon-vfpv4/luci/packages.adb",
+      "size": 382757,
+      "sha256": "a8d63ad5f5c38e096c3c546c0e91c779935f63e8a7bd256e804d89cd2a08829b",
+      "bundled_path": "configs/resource-snapshots/luci/packages.adb"
+    },
+    {
+      "id": "openwrt-target-index-20261018",
+      "feed": "target",
+      "version": "25.12.5-2026-10-18",
+      "url": "https://downloads.openwrt.org/releases/25.12.5/targets/armsr/armv7/packages/packages.adb",
+      "size": 13929,
+      "sha256": "e45dc3f69a3cc346a6bd1c03644c13f47cdd3408fe7247787ec7d52fe02a1aff",
+      "bundled_path": "configs/resource-snapshots/target/packages.adb"
+    }
+  ]
+}

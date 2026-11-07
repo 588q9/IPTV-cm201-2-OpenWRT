@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "allowed_roots": ["etc/config/", "etc/init.d/", "etc/rc.d/", "etc/hotplug.d/", "etc/ssl/certs/", "usr/", "www/", "lib/", "sbin/", "bin/"],
+  "allowed_files": ["etc/ssl/cert.pem", "etc/ssl/openssl.cnf", "etc/cm2012-proxy/Country.mmdb"],
+  "preserve_existing_roots": ["etc/config/"],
+  "forbidden_roots": ["lib/modules/", "lib/firmware/", "lib/apk/", "usr/lib/apk/", "usr/lib/opkg/"],
+  "link_roots": ["usr/bin/", "usr/sbin/", "usr/lib/", "usr/libexec/", "usr/share/", "bin/", "sbin/", "lib/", "etc/init.d/", "etc/rc.d/", "etc/ssl/certs/"],
+  "link_files": ["etc/ssl/cert.pem"],
+  "public_link_targets": ["etc/ssl/certs/NetLock_Arany_=Class_Gold=_F\u0151tan\u00fas\u00edtv\u00e1ny.crt"],
+  "web_roots": ["www/", "usr/share/rpcd/", "usr/share/ucode/luci/"],
+  "fixed_links": {"etc/cm2012-proxy/Country.mmdb": "/usr/share/cm2012/geodata/Country.mmdb"},
+  "limits": {"compressed_bytes": 268435456, "tar_bytes": 805306368, "member_bytes": 134217728, "payload_bytes": 536870912, "manifest_bytes": 4194304, "members": 16384, "files": 8192, "path_bytes": 240, "link_hops": 32}
+}

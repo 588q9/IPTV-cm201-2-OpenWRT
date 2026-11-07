@@ -1,0 +1,11 @@
+{
+  "version": "alpha0",
+  "locked": true,
+  "enabled": false,
+  "acceptDNS": false,
+  "acceptRoutes": false,
+  "advertiseRoutes": [],
+  "netfilterMode": "off",
+  "runSSHServer": false,
+  "runWebClient": false
+}

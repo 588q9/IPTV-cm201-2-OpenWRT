@@ -1,0 +1,69 @@
+name: 源码预发布
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/source-release.yml
+      - tools/cm2012/source_release.py
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 源码预发布 tag（必须尚未使用）
+        required: false
+        default: v0.2.0-rc.1
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: source-release
+  cancel-in-progress: false
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/tests.yml
+  publish:
+    if: github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      PYTHONUTF8: '1'
+      RELEASE_TAG: ${{ inputs.tag || 'v0.2.0-rc.1' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: 从事件提交生成并检查源码附件
+        shell: bash
+        run: python tools/cm2012/source_release.py --ref "$GITHUB_SHA" --tag "$RELEASE_TAG" --output "$RUNNER_TEMP/source-release"
+      - name: 发布未占用的源码预发布
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists; leaving it unchanged."
+            exit 0
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Tag already exists without a Release; refusing to reuse it." >&2
+            exit 1
+          fi
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$RELEASE_TAG" -f "sha=$GITHUB_SHA" >/dev/null
+          tag_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq '.object.sha')"
+          if [ "$tag_sha" != "$GITHUB_SHA" ]; then
+            echo "Created tag does not match the verified event commit; refusing to publish." >&2
+            exit 1
+          fi
+          cat > "$RUNNER_TEMP/source-release-notes.md" <<'NOTES'
+          源码预发布：附件只来自本次已通过公共回归和隐私检查的 Git 提交。
+          附件为 source.tar.gz、逐文件 manifest.json 和 SHA256SUMS；不包含设备镜像、私有输入、现场日志或备份。
+          此发布不代表真实订阅、Cloudflare、Tailscale、蜂窝/UDP、重启恢复和长期设备验收通过。HTTPS 管理策略按计划暂缓，保持现有行为。
+          NOTES
+          gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --target "$GITHUB_SHA" --prerelease --latest=false --title "$RELEASE_TAG source prerelease" --notes-file "$RUNNER_TEMP/source-release-notes.md" "$RUNNER_TEMP/source-release/source.tar.gz" "$RUNNER_TEMP/source-release/manifest.json" "$RUNNER_TEMP/source-release/SHA256SUMS"
