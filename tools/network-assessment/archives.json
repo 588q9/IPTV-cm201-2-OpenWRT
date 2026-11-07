@@ -1,0 +1,40 @@
+{
+  "arm": {
+    "archive_sha256": "aea7ae225989d302444b10b44aa42e89fdfa2a691b4d124ed710b4753518a875",
+    "binaries": {
+      "tailscale": {
+        "size": 32001424,
+        "sha256": "6db28171e3156234532b8d70799842a316a4e732941730a8cc99c40660191b3c",
+        "elf_class": 1,
+        "elf_endian": 1,
+        "elf_machine": 40
+      },
+      "tailscaled": {
+        "size": 37537315,
+        "sha256": "d300382d5e21d308cd82a9978227780f9c5bc47c0ae5805bb7ab31f482e46977",
+        "elf_class": 1,
+        "elf_endian": 1,
+        "elf_machine": 40
+      }
+    }
+  },
+  "mipsle": {
+    "archive_sha256": "6ad1f6c2d26f54f61312303ae9d2bad7a71b505b83ffc08cd77ed7f89875b3ac",
+    "binaries": {
+      "tailscale": {
+        "size": 34916594,
+        "sha256": "31061e373d027698ff8200a553d2688939a4c1f6c3c06ffd8c652d886afceb96",
+        "elf_class": 1,
+        "elf_endian": 1,
+        "elf_machine": 8
+      },
+      "tailscaled": {
+        "size": 41101557,
+        "sha256": "e1e81233070e9728e21c38c6bb9d9e32f4eb9fc8f3692d966811779089af81bd",
+        "elf_class": 1,
+        "elf_endian": 1,
+        "elf_machine": 8
+      }
+    }
+  }
+}
